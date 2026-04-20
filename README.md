@@ -1,6 +1,14 @@
 # 📊 DataLyze — Intelligent Data Analysis Platform
 
 > ⚡ Fast, offline analytics for real-world datasets — no cloud, no complexit
+>
+> ## Demo Screenshots
+
+![Upload Screen](assets/upload_screen.png)
+
+![Charts View](assets/charts.png)
+
+![Dashboard](assets/dashboard.png)
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.30%2B-red?logo=streamlit)
