@@ -6,15 +6,15 @@
 
 ![Login Screen](demo_pics/welcome_screen.png)
 
-![Profile_Dashboad](assets/profile_dashboad.png)
+![Profile_Dashboad](demo_pics/profile_dashboad.png)
 
-![Upload & Overview](assets/data_upload&overview.png)
+![Upload & Overview](demo_pics/data_upload&overview.png)
 
-![Data_Transformation](assets/data_transformation.png)
+![Data_Transformation](demo_pics/data_transformation.png)
 
-![Analysis_Options](assets/analysis_options.png)
+![Analysis_Options](demo_pics/analysis_options.png)
 
-![Final_dashboard](assets/final_dashboard.png)
+![Final_dashboard](demo_pics/final_dashboard.png)
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.30%2B-red?logo=streamlit)
