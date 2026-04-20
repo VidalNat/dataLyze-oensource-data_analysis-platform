@@ -28,7 +28,7 @@ Everything else lives in the **[project Wiki](../../wiki)**:
 
 | Page | What's in it |
 |---|---|
-| [Home]([../../wiki/Home](https://github.com/VidalNat/dataLyze-oensource-data_analysis-platform/wiki)) | Project overview & feature list |
+| [Home](https://github.com/VidalNat/dataLyze-oensource-data_analysis-platform/wiki)) | Project overview & feature list |
 | [Getting Started](../../wiki/Getting-Started) | Install, run, first use walkthrough |
 | [Project Structure](../../wiki/Project-Structure) | Every file explained |
 | [Adding an Analysis Module](../../wiki/Adding-an-Analysis-Module) | How to contribute a new chart type |
