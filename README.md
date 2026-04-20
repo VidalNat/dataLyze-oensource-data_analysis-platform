@@ -14,7 +14,7 @@ DataLyze is an open-source, browser-based data analysis tool. Upload a CSV or Ex
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/datalyze.git
+git clone https://github.com/VidalNat/datalyze.git
 cd datalyze
 pip install -r requirements.txt
 streamlit run app.py
