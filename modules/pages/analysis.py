@@ -56,7 +56,7 @@ def page_analysis():
             f'<b>📂 Re-upload needed to add more charts</b><br>'
             f'<span style="font-size:0.88rem;opacity:0.85;">'
             f'You are editing a saved session. To run new analyses, '
-            f're-upload <b>{fname}</b> on the Upload page. '
+            f're-upload previous <b>{fname}</b> on the Upload page. '
             f'Or go directly to the Dashboard to rename or update what you already have.'
             f'</span></div>',
             unsafe_allow_html=True)
@@ -100,7 +100,7 @@ def page_analysis():
         sname = st.session_state.get("editing_session_name", "Session")
         st.markdown(
             f'<div class="edit-banner">'
-            f'✏️ <b>Edit mode</b> — you are adding charts to <b>{sname}</b>. '
+            f'✏️ <b>Edit mode</b> — you are adding charts to <b>{sname}</b>. Make sure you uploaded the same data used before for <b>{sname}</b>. '
             f'When done, click <b>Proceed to Dashboard</b> below to save your changes.'
             f'</div>',
             unsafe_allow_html=True)

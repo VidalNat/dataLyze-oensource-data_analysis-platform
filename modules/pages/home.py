@@ -19,7 +19,7 @@ def page_home():
             st.session_state.page     = "home"
             st.rerun()
 
-    c1, c2 = st.columns([5, 1])
+    c1, c2 = st.columns([14, 1])
     with c1:
         st.markdown('<div class="brand">📊 DataLyze</div>', unsafe_allow_html=True)
     with c2:
@@ -34,7 +34,8 @@ def page_home():
     st.markdown("---")
 
     st.markdown(f"""
-    <div class="welcome-banner">
+                <!-- Make text aligned at centre & add pading to reduce excess width -->
+    <div class="welcome-banner" style="text-align: center; padding: 1.2rem 1.5rem;"> 
         <div style="font-size:0.75rem;opacity:0.75;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem;">
             DASHBOARD OVERVIEW
         </div>
@@ -69,7 +70,7 @@ def page_home():
             unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚀 Start New Analysis", use_container_width=True):
+    if st.button("🚀 Start New Analysis", use_container_width=False):
         log_activity(st.session_state.user_id, "new_analysis_started")
         st.session_state.page = "upload"; st.rerun()
 
