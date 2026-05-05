@@ -85,13 +85,19 @@ def _connect():
     if _PG:
         import psycopg2
         url = DB_URL
-        # Supabase (and most managed Postgres) requires SSL.
-        # Append sslmode=require if not already specified.
         if "sslmode" not in url:
             sep = "&" if "?" in url else "?"
             url = url + sep + "sslmode=require"
         conn = psycopg2.connect(url)
         conn.autocommit = False
+        # psycopg2 connections have no .execute() — sqlite3 ones do.
+        # Add it so every conn.execute(sql, params) call in this module
+        # works without touching any other function.
+        def _pg_execute(sql, params=()):
+            cur = conn.cursor()
+            cur.execute(sql, params)
+            return cur
+        conn.execute = _pg_execute
         return conn
     else:
         import sqlite3
