@@ -51,7 +51,7 @@ from modules.database import (
 )
 from modules.charts import charts_to_json, clean_insight_text, _fmt_num
 from modules.export import generate_html_report
-from modules.ui.css import inject_footer, render_logo
+from modules.ui.css import inject_footer, render_logo, render_page_steps
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -851,16 +851,21 @@ def page_dashboard():
 
     charts = _all_charts(viewing_saved)
 
-    render_logo()
-    if st.button("← Back"):
-        if viewing_saved:
-            for k in ["view_session_id","_view_charts","_vsid",
-                      "dashboard_title","kpis","layout_mode"]:
-                st.session_state.pop(k, None)
-            st.session_state.page = "home"
-        else:
-            st.session_state.page = "analysis"
-        st.rerun()
+    nc1, nc2 = st.columns([10, 1.5])
+    with nc1:
+        render_logo()
+    with nc2:
+        back_label = "← Home" if viewing_saved else "← Analyse"
+        if st.button(back_label, use_container_width=True, key="dash_back_btn"):
+            if viewing_saved:
+                for k in ["view_session_id","_view_charts","_vsid",
+                          "dashboard_title","kpis","layout_mode"]:
+                    st.session_state.pop(k, None)
+                st.session_state.page = "home"
+            else:
+                st.session_state.page = "analysis"
+            st.rerun()
+    render_page_steps("dashboard")
 
     # ── Dashboard title ───────────────────────────────────────────────────────
     if not viewing_saved:

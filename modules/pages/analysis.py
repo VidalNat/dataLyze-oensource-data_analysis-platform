@@ -40,7 +40,7 @@ from modules.analysis.runners   import run_descriptive
 from modules.analysis.data_quality import run_data_quality  # kept for regen of legacy saved charts
 from modules.analysis.outlier   import OUTLIER_HELP
 from modules.charts import charts_to_json, clean_insight_text, generate_chart_insights
-from modules.ui.css import inject_footer, render_logo
+from modules.ui.css import inject_footer, render_logo, render_page_steps
 
 
 def _shadow_notes_sync() -> None:
@@ -210,19 +210,24 @@ def page_analysis():
     df         = st.session_state.get("df")
     is_editing = "editing_session_id" in st.session_state
 
-    render_logo()
+    # Top nav
+    nc1, nc2 = st.columns([10, 1.5])
+    with nc1:
+        render_logo()
+    with nc2:
+        if st.button("← Home", use_container_width=True, key="analysis_home_btn"):
+            for k in ["editing_session_id","editing_session_name","editing_file_name"]:
+                st.session_state.pop(k, None)
+            st.session_state.page = "home"; st.rerun()
+    render_page_steps("analysis")
 
     # ── Edit mode without df ──────────────────────────────────────────────────
     if df is None and is_editing:
-        _restore_edit_notes()   # Re-seed notes cleared by Streamlit widget cleanup
+        _restore_edit_notes()
         sname  = st.session_state.get("editing_session_name", "Session")
         fname  = st.session_state.get("editing_file_name",    "the original file")
         charts = st.session_state.get("charts", [])
 
-        if st.button("← Home"):
-            for k in ["editing_session_id","editing_session_name","editing_file_name"]:
-                st.session_state.pop(k, None)
-            st.session_state.page = "home"; st.rerun()
 
         st.markdown(f"## ✏️ Editing: **{sname}**")
         st.info(
