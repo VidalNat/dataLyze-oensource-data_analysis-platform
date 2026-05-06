@@ -272,7 +272,7 @@ code,pre,.stCode{font-family:var(--font-mono)!important;}
   border-radius: var(--radius-xl);
   padding: 2.4rem 2rem 2rem;
   box-shadow: var(--shadow-lg), 0 1px 0 rgba(255,255,255,.08) inset;
-  animation: fadeUp .4s cubic-bezier(0.4,0,0.2,1) both;
+  animation: fadeUp .2s cubic-bezier(0.4,0,0.2,1) both;
 }
 .auth-tab-row { display:flex; gap:.5rem; margin-bottom:1.5rem; }
 .auth-tab {
@@ -408,7 +408,7 @@ div[data-testid="stToast"] {
   box-shadow: var(--shadow-lg) !important;
   font-size: .84rem !important;
   font-weight: 500 !important;
-  animation: fadeIn .25s ease both !important;
+  animation: fadeIn .10s ease both !important;
 }
 
 /* ── PROGRESS ─────────────────────────────────────────────────────────── */
