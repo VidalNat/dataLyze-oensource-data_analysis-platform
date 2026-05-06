@@ -33,7 +33,7 @@ from html import escape
 from modules.ui.column_manager import show_column_manager
 from modules.ui.column_tools import show_dtype_transformer, show_column_classifier
 from modules.ui.excel_loader import show_excel_loader
-from modules.ui.css import inject_footer, render_logo
+from modules.ui.css import inject_footer, render_logo, render_page_steps
 from modules.analysis.data_quality import run_data_quality
 
 
@@ -50,13 +50,15 @@ def _uploaded_signature(uploaded) -> str:
 
 
 def page_upload():
-    render_logo()
+    # Top nav row
+    nc1, nc2 = st.columns([10, 1.5])
+    with nc1:
+        render_logo()
+    with nc2:
+        if st.button("← Home", use_container_width=True):
+            st.session_state.page = "home"; st.rerun()
 
-    if st.button("← Home"):
-        st.session_state.page = "home"; st.rerun()
-
-    st.markdown("## 📂 Upload Dataset")
-
+    render_page_steps("upload")
     # Show editing context if in edit mode
     if "editing_session_id" in st.session_state:
         fname = st.session_state.get("editing_file_name", "the original file")
