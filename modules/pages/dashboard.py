@@ -49,7 +49,7 @@ from modules.database import (
     get_session_charts, get_session_meta,
     clear_draft, save_draft,
 )
-from modules.charts import charts_to_json, clean_insight_text, _fmt_num
+from modules.charts import charts_to_json, clean_insight_text, _fmt_num, apply_hover_format
 from modules.export import generate_html_report
 from modules.ui.css import inject_footer, render_logo
 
@@ -113,6 +113,29 @@ def _apply_axes(fig, x_lbl, y_lbl):
         f2 = copy.deepcopy(fig)
         if x_lbl: f2.update_xaxes(title_text=x_lbl)
         if y_lbl: f2.update_yaxes(title_text=y_lbl)
+        return f2
+    except Exception:
+        return fig
+
+
+def _apply_legend_names(fig, legend_names: dict):
+    """
+    Rename Plotly traces using the {original_name: custom_name} mapping stored
+    in chart_meta. Only renames traces that have a non-empty custom name set.
+
+    Works on any figure type (histogram, bar, scatter, line, etc.).
+    Traces whose names are not in the mapping are left unchanged.
+    """
+    if not legend_names:
+        return fig
+    try:
+        f2 = copy.deepcopy(fig)
+        for trace in f2.data:
+            original = getattr(trace, "name", None)
+            if original is not None and str(original) in legend_names:
+                custom = legend_names[str(original)]
+                if custom:
+                    trace.name = custom
         return f2
     except Exception:
         return fig
@@ -568,11 +591,41 @@ def _chart_settings(uid, title, fig, auto_insights, readonly):
                     new_hidden.add(i)
             hidden = new_hidden
 
+        # ── Legend label editing (shown whenever fig has >1 named traces) ─────────────────────
+        # Collects the unique trace names from fig.data (e.g. category values
+        # from a "Colour by" split) and lets the user override each one.
+        legend_inputs = {}
+        try:
+            trace_names = []
+            seen_names = set()
+            for trace in fig.data:
+                raw = getattr(trace, "name", None)
+                if raw is not None:
+                    key_name = str(raw)
+                    if key_name not in seen_names:
+                        seen_names.add(key_name)
+                        trace_names.append(key_name)
+            if len(trace_names) > 1:
+                st.markdown("---")
+                st.markdown("🏷️ **Legend Labels**")
+                st.caption("Rename each legend entry. Leave blank to keep the original value.")
+                saved_legend = _meta(uid).get("legend_names", {})
+                for tname in trace_names:
+                    legend_inputs[tname] = st.text_input(
+                        f"`{tname}`",
+                        value=saved_legend.get(tname, ""),
+                        placeholder=tname,
+                        key=f"leg_{uid}_{tname}",
+                    )
+        except Exception:
+            pass
+
         if st.button("💾 Save Settings", key=f"save_{uid}", type="primary"):
             _set_meta(uid, custom_title=nt, subtitle=sub,
                       x_label=xl, y_label=yl,
                       show_auto_insights=show_ai,
-                      hidden_insights=list(hidden))
+                      hidden_insights=list(hidden),
+                      legend_names=legend_inputs)
             # Also update the stored chart title tuple so the list header matches
             charts = st.session_state.get("charts", [])
             st.session_state.charts = [
@@ -606,12 +659,16 @@ def _render_chart(item, idx, total, viewing_saved):
     yl      = meta.get("y_label","")
 
     fig_show = _apply_axes(fig, xl, yl)
-    # Prepare display figure -- apply axis labels and styling but do NOT embed
+    fig_show = _apply_legend_names(fig_show, meta.get("legend_names", {}))
+    # Prepare display figure -- apply axis labels, legend names, and styling but do NOT embed
     # the title inside the Plotly figure (it is rendered as a heading above the
     # chart instead, so it only appears once).
     try:
         import copy as _copy
         fig_show = _copy.deepcopy(fig_show)
+
+        # Apply K/M/B hover formatting and hover label styling to the display copy.
+        apply_hover_format(fig_show)
 
         if sub:
             safe_sub = escape(str(sub))
@@ -970,6 +1027,7 @@ def _export_row(charts, sname, viewing_saved):
         if full_width.get(uid):
             meta["full_width"] = True
         fig  = _apply_axes(item[2], meta.get("x_label",""), meta.get("y_label",""))
+        fig  = _apply_legend_names(fig, meta.get("legend_names", {}))
         # Read notes from session_state live so they're always current
         notes = st.session_state.get(f"desc_{uid}", "") or (item[3] if len(item) > 3 else "")
         export_charts.append((uid, item[1], fig, notes, item[4] if len(item)>4 else [],

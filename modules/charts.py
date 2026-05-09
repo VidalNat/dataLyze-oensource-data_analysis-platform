@@ -101,7 +101,99 @@ def chart_layout() -> dict:
         margin=dict(l=20, r=20, t=48, b=20),
         bargap=0.28,
         bargroupgap=0.1,
+        # ── Hover tooltip styling ──────────────────────────────────────────────
+        # Dark semi-opaque background so text is legible on any chart colour.
+        # namelength=-1 shows the full trace name instead of truncating it.
+        hovermode="closest",
+        hoverlabel=dict(
+            bgcolor="rgba(15, 20, 35, 0.93)",
+            bordercolor="rgba(148, 163, 184, 0.35)",
+            font=dict(size=13, color="#f1f5f9", family="Inter, system-ui, sans-serif"),
+            namelength=-1,
+        ),
     )
+
+
+def apply_hover_format(fig) -> None:
+    """
+    Apply K/M/B-formatted hovertemplates to every trace in a Plotly figure.
+
+    Called once in dashboard._render_chart() so it covers every chart type
+    without requiring each runner to set its own template.
+
+    Formatting rules per trace type
+    ────────────────────────────────
+    bar        → label + value with SI unit (k/M/G)
+    scatter    → x + y with SI unit
+    histogram  → bin range + count with SI unit
+    pie        → label + value (SI) + percent
+    heatmap    → x/y pair + z rounded to 2 dp  (correlation values are small)
+    box        → skipped (Plotly renders quartile summary automatically)
+    other      → skipped
+
+    Traces that already carry a `customdata`-driven template (scatter_plot.py,
+    outlier.py) are skipped so their extra hover columns are preserved.
+
+    SI suffixes used by Plotly's d3-format ".3~s":
+        1 234 → "1.23k"  |  1 234 567 → "1.23M"  |  1 234 567 890 → "1.23G"
+    Trailing zeros are removed by the ~ flag: "1.20M" → "1.2M".
+    """
+    for trace in fig.data:
+        existing = getattr(trace, "hovertemplate", None) or ""
+        # Preserve hand-crafted templates that reference customdata columns
+        # (set by scatter_plot.py and outlier.py).
+        if "customdata" in existing:
+            continue
+
+        ttype = type(trace).__name__.lower()
+
+        if ttype == "bar":
+            orient = getattr(trace, "orientation", "v") or "v"
+            if orient == "h":
+                # Horizontal: x = value, y = category label
+                trace.hovertemplate = (
+                    "<b>%{y}</b><br>"
+                    "Value: <b>%{x:.3~s}</b>"
+                    "<extra>%{fullData.name}</extra>"
+                )
+            else:
+                # Vertical: x = category label, y = value
+                trace.hovertemplate = (
+                    "<b>%{x}</b><br>"
+                    "Value: <b>%{y:.3~s}</b>"
+                    "<extra>%{fullData.name}</extra>"
+                )
+
+        elif ttype == "scatter":
+            trace.hovertemplate = (
+                "<b>%{x}</b><br>"
+                "Value: <b>%{y:.3~s}</b>"
+                "<extra>%{fullData.name}</extra>"
+            )
+
+        elif ttype == "histogram":
+            trace.hovertemplate = (
+                "Range: <b>%{x}</b><br>"
+                "Count: <b>%{y:.3~s}</b>"
+                "<extra>%{fullData.name}</extra>"
+            )
+
+        elif ttype in ("pie", "sunburst"):
+            trace.hovertemplate = (
+                "<b>%{label}</b><br>"
+                "Value: <b>%{value:.3~s}</b><br>"
+                "Share: %{percent}"
+                "<extra></extra>"
+            )
+
+        elif ttype == "heatmap":
+            # Correlation matrices: keep full decimal precision, no SI units.
+            trace.hovertemplate = (
+                "%{x} × %{y}<br>"
+                "r = <b>%{z:.3f}</b>"
+                "<extra></extra>"
+            )
+        # box / violin / candlestick / choropleth / other: leave Plotly defaults
 
 
 # ─────────────────────────────────────────────────────────────────────────────

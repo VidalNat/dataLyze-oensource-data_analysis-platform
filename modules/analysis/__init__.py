@@ -96,8 +96,9 @@ ANALYSIS_OPTIONS = [
     {"id": "categorical",  "icon": "🏷️", "name": "Categorical Bar",   "desc": "Vertical & horizontal bars"},
     {"id": "pie_chart",    "icon": "🍩", "name": "Pie & Donut",       "desc": "Proportion & share analysis"},
     {"id": "time_series",  "icon": "⏱️", "name": "Time Series",       "desc": "Trends & time patterns"},
-    {"id": "outlier",      "icon": "🚨", "name": "Outlier Detection", "desc": "IQR-based anomaly analysis"},
 ]
+# Note: Outlier Detection was moved to the upload/data-quality page.
+# run_outlier is kept in _RUNNERS for backward compatibility with saved sessions.
 
 _RUNNERS = {
     "descriptive":  run_descriptive,
@@ -112,7 +113,7 @@ _RUNNERS = {
 
 # Analyses that need axis/column selection via the config panel.
 _NEEDS_AXES = {"statistical", "distribution", "correlation", "categorical",
-               "pie_chart", "time_series", "outlier"}
+               "pie_chart", "time_series"}
 
 # Reserved for future analyses that must bypass the standard st.form() wrapper.
 _NO_FORM = set()
@@ -230,6 +231,11 @@ def render_config_panel_scoped(uid: str, aid: str, df) -> None:
             st.markdown("**📊 Dual Y-Axis (Secondary metric as line overlay)**")
             dual_opts = [NONE] + list(num)
             st.selectbox("Secondary Y-Axis metric", dual_opts, key=sk("dual_y"))
+            d2a, _ = st.columns([1, 2])
+            with d2a:
+                st.selectbox("Secondary metric aggregation",
+                             list(_AGG_FUNCS.keys()), key=sk("dual_y_agg"),
+                             help="Independent aggregation for the secondary Y-axis metric.")
 
     elif aid == "time_series":
         dt_candidates = dt if dt else all_cols
@@ -243,12 +249,14 @@ def render_config_panel_scoped(uid: str, aid: str, df) -> None:
         with c4: st.selectbox("Aggregation", list(_AGG_FUNCS.keys()), key=sk("agg"))
         st.markdown("---")
         dual_opts_ts = [NONE] + list(num)
-        st.selectbox("Secondary Y-Axis metric", dual_opts_ts, key=sk("dual_y_ts"))
+        ts_d1, ts_d2, _ = st.columns([2, 1, 1])
+        with ts_d1:
+            st.selectbox("Secondary Y-Axis metric", dual_opts_ts, key=sk("dual_y_ts"))
+        with ts_d2:
+            st.selectbox("Secondary metric aggregation",
+                         list(_AGG_FUNCS.keys()), key=sk("dual_y_agg"),
+                         help="Independent aggregation for the secondary Y-axis metric.")
 
-    elif aid == "outlier":
-        c1, c2 = st.columns(2)
-        with c1: st.multiselect("Columns to analyse", num, default=num[:4], key=sk("x"))
-        with c2: st.multiselect("Group by (optional)", cat, max_selections=1, key=sk("grp"))
 
 
 def _collect_kwargs_scoped(uid: str, aid: str, df) -> dict:
@@ -286,7 +294,8 @@ def _collect_kwargs_scoped(uid: str, aid: str, df) -> dict:
             dual_y = None if (not raw_dual or raw_dual == NONE) else raw_dual
             if dual_y and y and dual_y in (y if isinstance(y,list) else [y]):
                 dual_y = None
-            kwargs.update(direction=direction, dual_y_col=dual_y)
+            dual_y_agg = _AGG_FUNCS.get(g("dual_y_agg", "Mean (Avg)"), "mean") if dual_y else None
+            kwargs.update(direction=direction, dual_y_col=dual_y, dual_y_agg=dual_y_agg)
     elif aid == "time_series":
         x = g("x",[])
         y = g("y",num[:2]) or num[:2]
@@ -296,11 +305,9 @@ def _collect_kwargs_scoped(uid: str, aid: str, df) -> dict:
         dual_y = None if (not raw_dual or raw_dual == NONE) else raw_dual
         if dual_y and dual_y in (y if isinstance(y,list) else [y]):
             dual_y = None
+        dual_y_agg = _AGG_FUNCS.get(g("dual_y_agg", "Mean (Avg)"), "mean") if dual_y else None
         kwargs.update(x_cols=x or None, y_cols=y, agg=agg,
-                      date_part=date_part, dual_y_col=dual_y)
-    elif aid == "outlier":
-        g2 = g("grp",[])
-        kwargs.update(x_cols=g("x",num[:4]) or num[:4], y_cols=g2 or None)
+                      date_part=date_part, dual_y_col=dual_y, dual_y_agg=dual_y_agg)
 
     return kwargs
 
@@ -396,9 +403,16 @@ def render_config_panel(aid: str, df) -> None:
             st.markdown("**📊 Dual Y-Axis (Secondary metric as line overlay)**")
             st.caption("Choose a secondary metric to overlay as a line on a second Y-axis. Select 'None' to disable.")
             dual_opts = [NONE] + list(num)
-            st.selectbox(
-                "Secondary Y-Axis metric", dual_opts, key=_sk(aid, "dual_y"),
-                help="Primary metric → bars. Secondary metric → line on the right Y-axis.")
+            cat_d1, cat_d2, _ = st.columns([2, 1, 1])
+            with cat_d1:
+                st.selectbox(
+                    "Secondary Y-Axis metric", dual_opts, key=_sk(aid, "dual_y"),
+                    help="Primary metric → bars. Secondary metric → line on the right Y-axis.")
+            with cat_d2:
+                st.selectbox(
+                    "Secondary metric aggregation", list(_AGG_FUNCS.keys()),
+                    key=_sk(aid, "dual_y_agg"),
+                    help="Independent aggregation applied only to the secondary Y-axis metric.")
 
     # ── Time Series ───────────────────────────────────────────────────────────
     # Line charts over time with optional date-part grouping and dual Y-axis.
@@ -419,16 +433,20 @@ def render_config_panel(aid: str, df) -> None:
         st.markdown("**📊 Dual Y-Axis (Secondary metric as dashed line)**")
         st.caption("Choose a secondary metric on the right Y-axis. Select 'None' to disable.")
         dual_opts_ts = [NONE] + list(num)
-        st.selectbox(
-            "Secondary Y-Axis metric", dual_opts_ts, key=_sk(aid, "dual_y_ts"),
-            help="Adds a second line on the right axis.")
+        ts_d1, ts_d2, _ = st.columns([2, 1, 1])
+        with ts_d1:
+            st.selectbox(
+                "Secondary Y-Axis metric", dual_opts_ts, key=_sk(aid, "dual_y_ts"),
+                help="Adds a second line on the right axis.")
+        with ts_d2:
+            st.selectbox(
+                "Secondary metric aggregation", list(_AGG_FUNCS.keys()),
+                key=_sk(aid, "dual_y_agg"),
+                help="Independent aggregation applied only to the secondary Y-axis metric.")
 
-    # ── Outlier Detection ─────────────────────────────────────────────────────
-    # IQR-based scatter plots flagging values outside 1.5×IQR boundaries.
-    elif aid == "outlier":
-        c1, c2 = st.columns(2)
-        with c1: st.multiselect("Columns to analyse", num, default=num[:4], key=_sk(aid, "x"))
-        with c2: st.multiselect("Group by (optional)", cat, max_selections=1, key=_sk(aid, "grp"))
+    # Outlier Detection config removed -- outlier detection was moved to the
+    # upload page (Data Quality section).  run_outlier remains in _RUNNERS for
+    # backward compat with saved sessions that already contain outlier charts.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,7 +520,8 @@ def _collect_kwargs(aid: str, df) -> dict:
             # Prevent the secondary metric from being the same as the primary.
             if dual_y and y and dual_y in (y if isinstance(y, list) else [y]):
                 dual_y = None
-            kwargs.update(direction=direction, dual_y_col=dual_y)
+            dual_y_agg = _AGG_FUNCS.get(_g(aid, "dual_y_agg", "Mean (Avg)"), "mean") if dual_y else None
+            kwargs.update(direction=direction, dual_y_col=dual_y, dual_y_agg=dual_y_agg)
 
     # ── Time Series ───────────────────────────────────────────────────────────
     elif aid == "time_series":
@@ -515,14 +534,9 @@ def _collect_kwargs(aid: str, df) -> dict:
         # Prevent secondary from being the same column as any primary metric.
         if dual_y and dual_y in (y if isinstance(y, list) else [y]):
             dual_y = None
+        dual_y_agg = _AGG_FUNCS.get(_g(aid, "dual_y_agg", "Mean (Avg)"), "mean") if dual_y else None
         kwargs.update(x_cols=x or None, y_cols=y, agg=agg,
-                      date_part=date_part, dual_y_col=dual_y)
-
-    # ── Outlier ───────────────────────────────────────────────────────────────
-    elif aid == "outlier":
-        x = _g(aid, "x", num[:4]) or num[:4]
-        g = _g(aid, "grp", [])
-        kwargs.update(x_cols=x, y_cols=g or None)
+                      date_part=date_part, dual_y_col=dual_y, dual_y_agg=dual_y_agg)
 
     return kwargs
 

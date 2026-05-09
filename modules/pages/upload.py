@@ -35,6 +35,7 @@ from modules.ui.column_tools import show_dtype_transformer, show_column_classifi
 from modules.ui.excel_loader import show_excel_loader
 from modules.ui.css import inject_footer, render_logo
 from modules.analysis.data_quality import run_data_quality
+from modules.analysis.outlier import run_outlier_upload
 
 
 def _is_excel(name: str) -> bool:
@@ -149,6 +150,12 @@ def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):
                     f'opacity:0.7;margin-bottom:0.2rem;">{ch_title}</div>',
                     unsafe_allow_html=True)
                 st.plotly_chart(ch_fig, use_container_width=True)
+
+    # ── Outlier Detection -- on-demand, results cached by df fingerprint ───────
+    # Always read from session_state.df so the widget sees any rows just cleaned
+    # by the missing-value / duplicate controls above.
+    st.markdown("---")
+    run_outlier_upload(st.session_state.df)
 
     st.markdown("---")
 

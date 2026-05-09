@@ -50,16 +50,32 @@ def logo_data_uri() -> str:
         return ""
 
 
+@lru_cache(maxsize=1)
+def _css_string() -> str:
+    """Build the CSS string once per process — string construction is cheap
+    but lru_cache avoids any repeated work. st.markdown() must still be called
+    on every rerun because Streamlit wipes the DOM on each rerun."""
+    return """
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+    """
+
+
 def inject_css():
+    # Must run on every rerun — Streamlit wipes the DOM each time, so injected
+    # styles are gone after st.rerun(). The string itself is cached via
+    # _css_string() to avoid repeated construction.
+    st.markdown(_css_string(), unsafe_allow_html=True)
+    _inject_css_inner()
+
+
+def _inject_css_inner():
     st.markdown("""
     <style>
-
-    /* ═══════════════════════════════════════════════════════════
-       FONTS -- dynamic per browser theme
-       Uses prefers-color-scheme + Streamlit CSS vars together
-       so text is always readable regardless of theme.
-    ═══════════════════════════════════════════════════════════ */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
     :root {
         --font-body:  'Inter', system-ui, -apple-system, sans-serif;
@@ -73,7 +89,6 @@ def inject_css():
         --surface:        rgba(255,255,255,0.72);
         --surface-hover:  rgba(255,255,255,0.88);
         --border:         rgba(15,23,42,0.10);
-        --shadow:         0 4px 24px rgba(15,23,42,0.08);
 
         /* Brand palette */
         --brand-1: #4f6ef7;
@@ -93,7 +108,6 @@ def inject_css():
         --surface:        rgba(15,23,42,0.65);
         --surface-hover:  rgba(30,41,59,0.80);
         --border:         rgba(255,255,255,0.08);
-        --shadow:         0 4px 24px rgba(0,0,0,0.35);
     }
 
     /* Also respond to browser-native dark mode preference */
@@ -105,11 +119,10 @@ def inject_css():
             --surface:        rgba(15,23,42,0.65);
             --surface-hover:  rgba(30,41,59,0.80);
             --border:         rgba(255,255,255,0.08);
-            --shadow:         0 4px 24px rgba(0,0,0,0.35);
         }
     }
 
-    html, body, [class*="css"] {
+    html, body, .stApp, .stMarkdown, .stText {
         font-family: var(--font-body) !important;
         color: var(--text-primary) !important;
         -webkit-font-smoothing: antialiased;
@@ -133,6 +146,8 @@ def inject_css():
        Two layers: a base gradient + animated orbs via pseudo
        Adapts for light (subtle, pastel) and dark (vivid, deep)
     ═══════════════════════════════════════════════════════════ */
+    /* background-attachment: scroll keeps GPU tile compositing intact.
+       Fixed was causing full-page repaints on every scroll event. */
     .stApp {
         background:
             radial-gradient(ellipse 80% 60% at 10% 0%,   rgba(79,110,247,0.18) 0%, transparent 60%),
@@ -140,7 +155,7 @@ def inject_css():
             radial-gradient(ellipse 50% 40% at 50% 90%,  rgba(6,182,212,0.12)  0%, transparent 55%),
             radial-gradient(ellipse 70% 60% at 80% 50%,  rgba(245,158,11,0.07) 0%, transparent 60%),
             var(--background-color, #0f172a) !important;
-        background-attachment: fixed !important;
+        background-attachment: scroll !important;
     }
 
     @media (prefers-color-scheme: light) {
@@ -148,40 +163,43 @@ def inject_css():
             background:
                 radial-gradient(ellipse 80% 60% at 10% 0%,   rgba(79,110,247,0.09) 0%, transparent 60%),
                 radial-gradient(ellipse 60% 50% at 90% 10%,  rgba(139,92,246,0.08) 0%, transparent 55%),
-                radial-gradient(ellipse 50% 40% at 50% 90%,  rgba(6,182,212,0.07)  0%, transparent 55%),
                 #f8faff !important;
-            background-attachment: fixed !important;
+            background-attachment: scroll !important;
         }
     }
 
-    /* Mesh noise overlay for texture */
-    .stApp::before {
-        content: '';
-        position: fixed;
-        inset: 0;
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
-        pointer-events: none;
-        z-index: 0;
-        opacity: 0.4;
-    }
+    /* Removed: feTurbulence noise ::before overlay.
+       SVG filter noise is CPU-rendered and forces a repaint layer on every
+       scroll. Visual effect was imperceptible at 0.025 opacity anyway. */
 
     /* ═══════════════════════════════════════════════════════════
        GLASSMORPHISM SURFACES
     ═══════════════════════════════════════════════════════════ */
-    .kpi-card, .metric-card, .ag-card, .sess-card,
-    .info-bar, .classifier-box, .themed-box, .glass-card {
+    /* backdrop-filter on every card is GPU-expensive.
+       Static display cards (.kpi-card, .metric-card, .info-bar, .classifier-box,
+       .themed-box) get a plain semi-transparent surface.
+       Interactive/hoverable cards (.ag-card, .sess-card, .glass-card) keep
+       the blur but are promoted to their own GPU layer via will-change. */
+    .kpi-card, .metric-card, .info-bar, .classifier-box, .themed-box {
         background: var(--surface) !important;
-        backdrop-filter: blur(16px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
         border: 1px solid var(--border) !important;
         border-radius: 16px !important;
-        box-shadow: var(--shadow) !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: none !important;
+        color: var(--text-primary) !important;
+    }
+    .ag-card, .sess-card, .glass-card {
+        background: var(--surface) !important;
+        backdrop-filter: blur(12px) saturate(150%) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        box-shadow: none !important;
+        will-change: transform;
         color: var(--text-primary) !important;
     }
     .kpi-card:hover, .ag-card:hover, .sess-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 32px rgba(79,110,247,0.15) !important;
+        box-shadow: none !important;
     }
 
     .kpi-card { padding: 0.65rem 0.8rem; text-align: center; }
@@ -244,7 +262,7 @@ def inject_css():
         padding: 2.2rem 2.5rem;
         margin-bottom: 1.8rem;
         border: 1px solid rgba(255,255,255,0.15);
-        box-shadow: 0 8px 40px rgba(79,110,247,0.25);
+        box-shadow: none;
         position: relative;
         overflow: hidden;
     }
@@ -281,13 +299,13 @@ def inject_css():
         font-weight: 600 !important;
         font-size: 0.88rem !important;
         letter-spacing: 0.01em !important;
-        transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s !important;
-        box-shadow: 0 4px 14px rgba(79,110,247,0.30) !important;
+        transition: opacity 0.2s, transform 0.15s !important;
+        box-shadow: none !important;
     }
     .stButton > button:hover, .stDownloadButton > button:hover {
         opacity: 0.92 !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 6px 20px rgba(79,110,247,0.40) !important;
+        box-shadow: none !important;
     }
     .stButton > button:active { transform: translateY(0) !important; }
 
@@ -300,7 +318,6 @@ def inject_css():
     .stNumberInput input {
         font-family: var(--font-body) !important;
         background: var(--surface) !important;
-        backdrop-filter: blur(8px) !important;
         color: var(--text-primary) !important;
         border: 1px solid var(--border) !important;
         border-radius: 10px !important;
@@ -477,5 +494,5 @@ body { font-family: Inter, system-ui, sans-serif; font-size: 14px; }
 </div>
 </body>
 </html>"""
-    components.html(footer_html.replace("__LYTRIZE_LOGO__", footer_logo), height=260, scrolling=False)
+    components.html(footer_html.replace("__LYTRIZE_LOGO__", footer_logo), height=300, scrolling=False)
     

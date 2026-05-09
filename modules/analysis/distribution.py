@@ -22,7 +22,8 @@ def run_distribution(df, x_cols=None, y_cols=None, palette=None, **kwargs):
         df:      Working DataFrame.
         x_cols:  Numeric columns to plot. Defaults to the first 6 numeric cols.
         y_cols:  Optional list containing one categorical column for colour-split.
-                 When provided, each histogram bar is split by category.
+                 When provided, each histogram bar is split by category value,
+                 each category gets its own colour, and a legend is shown.
         palette: List of hex colour strings.
         **kwargs: Extra kwargs silently ignored.
 
@@ -30,18 +31,37 @@ def run_distribution(df, x_cols=None, y_cols=None, palette=None, **kwargs):
         list of (title: str, fig: Figure) -- one entry per column in x_cols.
     """
     charts = []
-    num = x_cols or _num_cols()[:6]  # Cap default at 6 to avoid overwhelming output.
-    pal = palette or COLORS
+    num       = x_cols or _num_cols()[:6]  # Cap default at 6 to avoid overwhelming output.
+    pal       = palette or COLORS
+    color_col = y_cols[0] if y_cols else None  # y_cols carries the "Colour by" column.
 
     for i, col in enumerate(num):
-        fig = px.histogram(
-            df,
-            x=col,
-            nbins=35,            # 35 bins is a good default for most datasets.
-            marginal="box",      # Box plot above the histogram for quartile visibility.
-            title=f"Distribution: {col}",
-            color_discrete_sequence=[pal[i % len(pal)]])
+        if color_col and color_col in df.columns:
+            # ── Colour-split histogram ────────────────────────────────────────
+            # One trace per unique category value; overlaid so shapes stay legible.
+            fig = px.histogram(
+                df,
+                x=col,
+                color=color_col,
+                nbins=35,
+                marginal="box",
+                barmode="overlay",
+                opacity=0.75,
+                title=f"Distribution: {col} by {color_col}",
+                color_discrete_sequence=pal,
+            )
+        else:
+            # ── Single-colour histogram (no colour split selected) ────────────
+            fig = px.histogram(
+                df,
+                x=col,
+                nbins=35,            # 35 bins is a good default for most datasets.
+                marginal="box",      # Box plot above the histogram for quartile visibility.
+                title=f"Distribution: {col}",
+                color_discrete_sequence=[pal[i % len(pal)]],
+            )
         fig.update_layout(**chart_layout())
-        charts.append((f"Dist: {col}", fig))
+        label = f"Dist: {col} by {color_col}" if color_col else f"Dist: {col}"
+        charts.append((label, fig))
 
     return charts

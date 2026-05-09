@@ -15,7 +15,7 @@ Flow on each rerun:
 
 Special handling:
     - descriptive renders inline via st.dataframe() and returns no charts.
-    - OUTLIER_HELP text is displayed above outlier charts.
+    - Outlier Detection moved to the upload page (Data Quality section).
     - Auto-insights are generated via generate_chart_insights() after each chart.
 
 CONTRIBUTING -- after adding a new analysis type in __init__.py:
@@ -38,7 +38,6 @@ from modules.analysis import (
 )
 from modules.analysis.runners   import run_descriptive
 from modules.analysis.data_quality import run_data_quality  # kept for regen of legacy saved charts
-from modules.analysis.outlier   import OUTLIER_HELP
 from modules.charts import charts_to_json, clean_insight_text, generate_chart_insights
 from modules.ui.css import inject_footer, render_logo
 
@@ -501,6 +500,12 @@ def _render_chart_list(charts, edit_mode=False):
         if xl: fig_show.update_xaxes(title_text=xl)
         if yl: fig_show.update_yaxes(title_text=yl)
         fig_show.update_layout(title_text="")
+        # Apply stored legend trace renames (from Chart Settings → Legend Labels)
+        stored_names = meta.get("trace_names", {})
+        for _ti, _trace in enumerate(fig_show.data):
+            renamed = stored_names.get(str(_ti))
+            if renamed:
+                _trace.name = renamed
         is_horiz = any(getattr(t, "orientation", "v") == "h"
                        for t in fig_show.data if hasattr(t, "orientation"))
         if is_horiz:
@@ -538,6 +543,33 @@ def _render_chart_list(charts, edit_mode=False):
                                        value=meta.get("y_label", ""),
                                        key=f"ayl_{uid}")
 
+            # ── Legend / Trace Labels ─────────────────────────────────────
+            # Only shown for charts that have at least one named trace
+            # (dual-Y charts, multi-line time series, etc.).
+            _named_traces = [
+                (i, t) for i, t in enumerate(fig.data)
+                if getattr(t, "name", None)
+            ]
+            new_trace_names = {}
+            if _named_traces:
+                st.markdown("**🏷️ Legend Labels**")
+                st.caption(
+                    "Rename the legend entries shown on the chart. "
+                    "Leave blank to keep the auto-generated name.")
+                _stored_names = meta.get("trace_names", {})
+                _tn_cols = st.columns(min(len(_named_traces), 3))
+                for _col_i, (_ti, _trace) in enumerate(_named_traces):
+                    with _tn_cols[_col_i % len(_tn_cols)]:
+                        _auto_name = _trace.name or f"Trace {_ti + 1}"
+                        _cur_name  = _stored_names.get(str(_ti), "")
+                        new_trace_names[str(_ti)] = st.text_input(
+                            f"Label for: {_auto_name}",
+                            value=_cur_name,
+                            placeholder=_auto_name,
+                            key=f"atn_{uid}_{_ti}",
+                            help=f"Auto name: '{_auto_name}'. "
+                                 "Leave blank to keep it.")
+
             # Auto-insights toggle
             chart_type    = st.session_state.get(f"chart_type_{uid}", "")
             auto_insights = st.session_state.get(f"auto_insights_{uid}")
@@ -561,13 +593,16 @@ def _render_chart_list(charts, edit_mode=False):
                         new_hidden.add(i)
 
             if st.button("💾 Save Settings", key=f"asave_{uid}", type="primary"):
+                # Only persist trace renames that the user actually filled in
+                saved_trace_names = {k: v for k, v in new_trace_names.items() if v.strip()}
                 _set_chart_meta(uid,
                                 custom_title=new_title,
                                 subtitle=new_sub,
                                 x_label=new_xl,
                                 y_label=new_yl,
                                 show_auto_insights=show_ai,
-                                hidden_insights=list(new_hidden))
+                                hidden_insights=list(new_hidden),
+                                trace_names=saved_trace_names)
                 # Keep title in charts list in sync
                 st.session_state.charts = [
                     (c[0], new_title if c[0] == uid else c[1], c[2])

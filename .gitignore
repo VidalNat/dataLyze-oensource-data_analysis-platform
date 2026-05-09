@@ -11,7 +11,7 @@ lytrize.db
 .env.*
 !.env.example
 .streamlit/secrets.toml
-POSTGRES_FIX_README.txt
+*.txt
 
 # ── Test & sample data ────────────────────────────────────────────────────────
 test.csv

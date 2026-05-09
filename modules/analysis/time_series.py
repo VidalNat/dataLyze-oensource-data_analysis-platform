@@ -46,7 +46,7 @@ _WEEKDAY = {d: i for i, d in enumerate(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,
-                    palette=None, dual_y_col=None, **_):
+                    palette=None, dual_y_col=None, dual_y_agg=None, **_):
     """
     Generate time-series line charts for selected numeric metrics.
 
@@ -64,16 +64,19 @@ def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,
         palette:     List of hex colour strings.
         dual_y_col:  A second numeric column to plot on a secondary Y-axis.
                      Shown as a dashed line. Ignored if equal to the primary metric.
+        dual_y_agg:  Aggregation for the secondary metric. Defaults to `agg` when None.
         **_:         Extra kwargs silently ignored.
 
     Returns:
         list of (title: str, fig: Figure) -- one entry per metric in y_cols.
     """
-    charts  = []
-    df      = df.copy()          # Never mutate the caller's DataFrame.
-    dt_col  = (x_cols or [None])[0]
-    agg_lbl = agg.title()
-    pal     = palette or COLORS
+    charts       = []
+    df           = df.copy()          # Never mutate the caller's DataFrame.
+    dt_col       = (x_cols or [None])[0]
+    agg_lbl      = agg.title()
+    pal          = palette or COLORS
+    dual_agg     = dual_y_agg or agg      # independent aggregation for secondary metric
+    dual_agg_lbl = dual_agg.title()
 
     # ── Auto-detect datetime column if not explicitly selected ─────────────────
     if not dt_col:
@@ -154,7 +157,7 @@ def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,
 
         if dual_valid:
             if dt_col and plot_x == "_p":
-                g2 = df.groupby("_p")[dual].agg(agg).reset_index()
+                g2 = df.groupby("_p")[dual].agg(dual_agg).reset_index()
                 g2.columns = ["_p", dual]
                 if order_map:
                     g2["_s"] = g2["_p"].map(order_map)
@@ -178,18 +181,18 @@ def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,
             ), secondary_y=False)
             fig.add_trace(go.Scatter(
                 x=x_vals, y=y2_vals, mode="lines+markers",
-                name=f"{agg_lbl} {dual}",
+                name=f"{dual_agg_lbl} {dual}",
                 line=dict(color=c_sec, width=2, dash="dash"),
                 marker=dict(size=5),
             ), secondary_y=True)
             fig.update_layout(
-                title=f"{agg_lbl} {col} & {dual} over {x_label}",
+                title=f"{agg_lbl} {col} & {dual_agg_lbl} {dual} over {x_label}",
                 **chart_layout())
             if plot_x == "_p":
                 # Categorical X-axis -- tell Plotly to preserve the sorted order.
                 fig.update_xaxes(type="category", title_text=x_label)
             fig.update_yaxes(title_text=f"{agg_lbl} {col}", secondary_y=False)
-            fig.update_yaxes(title_text=f"{agg_lbl} {dual}", secondary_y=True)
+            fig.update_yaxes(title_text=f"{dual_agg_lbl} {dual}", secondary_y=True)
 
         else:
             # Single-axis line chart.

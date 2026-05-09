@@ -55,7 +55,8 @@ def show_column_manager(df):
             b1, b2 = st.columns(2)
             with b1: date_col = st.selectbox("Source Date Column", df.columns, key="date_col")
             with b2: part_to_extract = st.selectbox("Part to Extract",
-                ["Year","Month (Number)","Month Name","Day","Weekday Name","Hour"], key="date_part_ext")
+                ["Year","Quarter","Month (Number)","Month Name","Week Number",
+                 "Day","Weekday Name","Hour (12h AM/PM)","Hour (24h)"], key="date_part_ext")
             formula_str = "date_extraction_placeholder"
 
         if st.button("➕ Add Column", key="btn_add_col"):
@@ -64,14 +65,83 @@ def show_column_manager(df):
             else:
                 try:
                     if calc_type == "Extract Date/Time Part":
-                        temp_dates = pd.to_datetime(df[date_col], errors='coerce')
+                        raw = df[date_col]
+
+                        # ── Robust datetime parser (handles AM/PM and pure time strings) ──
+                        def _parse_datetime_robust(series: pd.Series) -> pd.Series:
+                            """
+                            Multi-strategy parser that handles:
+                              - ISO datetimes / dates  (2024-01-15, 2024-01-15 14:30)
+                              - 12-hr time strings     (3:45 PM, 3:45:22 pm, 3:45PM)
+                              - 24-hr time strings     (14:30, 07:06:11)
+                              - Mixed columns          (some AM/PM, some 24-hr)
+                            Returns a datetime64 Series; failures are NaT.
+                            """
+                            s = series.astype(str).str.strip()
+
+                            # Strategy 1 — let pandas infer (handles ISO, many common formats)
+                            result = pd.to_datetime(s, errors="coerce")
+
+                            remaining = result.isna() & series.notna()
+                            if not remaining.any():
+                                return result
+
+                            # Strategy 2 — normalise AM/PM spacing then retry
+                            # "3:45PM" → "3:45 PM", "3:45pm" → "3:45 PM"
+                            normalised = (
+                                s[remaining]
+                                .str.upper()
+                                .str.replace(r"([AP]M)$", r" \1", regex=True)
+                                .str.replace(r"\s{2,}", " ", regex=True)
+                            )
+                            result[remaining] = pd.to_datetime(
+                                "1970-01-01 " + normalised, errors="coerce"
+                            )
+
+                            remaining = result.isna() & series.notna()
+                            if not remaining.any():
+                                return result
+
+                            # Strategy 3 — explicit format sweep for common AM/PM patterns
+                            for fmt in (
+                                "%I:%M %p", "%I:%M:%S %p",
+                                "%I:%M%p",  "%I:%M:%S%p",
+                                "%I %p",
+                                "%m/%d/%Y %I:%M %p", "%d/%m/%Y %I:%M %p",
+                                "%m/%d/%Y %H:%M",    "%d/%m/%Y %H:%M",
+                            ):
+                                still = result.isna() & series.notna()
+                                if not still.any():
+                                    break
+                                try:
+                                    attempt = pd.to_datetime(
+                                        s[still], format=fmt, errors="coerce"
+                                    )
+                                    result[still] = attempt
+                                except Exception:
+                                    pass
+
+                            return result
+
+                        temp_dates = _parse_datetime_robust(raw)
+
+                        null_count = int(temp_dates.isna().sum())
+                        if null_count:
+                            st.warning(
+                                f"⚠️ {null_count} value(s) in `{date_col}` could not be parsed "
+                                f"as a date/time and will produce NaN in the new column."
+                            )
+
                         mapping = {
-                            "Year": temp_dates.dt.year,
-                            "Month (Number)": temp_dates.dt.month,
-                            "Month Name": temp_dates.dt.month_name(),
-                            "Day": temp_dates.dt.day,
-                            "Weekday Name": temp_dates.dt.day_name(),
-                            "Hour": temp_dates.dt.hour,
+                            "Year":              temp_dates.dt.year,
+                            "Quarter":           temp_dates.dt.quarter,
+                            "Month (Number)":    temp_dates.dt.month,
+                            "Month Name":        temp_dates.dt.month_name(),
+                            "Week Number":       temp_dates.dt.isocalendar().week.astype("Int64"),
+                            "Day":               temp_dates.dt.day,
+                            "Weekday Name":      temp_dates.dt.day_name(),
+                            "Hour (12h AM/PM)":  temp_dates.dt.strftime("%-I %p"),
+                            "Hour (24h)":        temp_dates.dt.hour,
                         }
                         df[new_col_name.strip()] = mapping[part_to_extract]
                     else:

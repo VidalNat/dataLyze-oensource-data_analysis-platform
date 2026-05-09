@@ -5,7 +5,7 @@ app.py -- Lytrize application entry point.
 This is the ONLY file Streamlit runs directly:
     streamlit run app.py
 
-Responsibilities:
+What it does?
   1. Configure the Streamlit page (title, icon, layout).
   2. Restore the logged-in user from a URL token on browser refresh.
   3. Restore an in-progress analysis draft from the database (fix #9).
@@ -39,11 +39,6 @@ CONTRIBUTING -- adding a new page
   3. Add  elif p == "my_page": page_my_page()  in the router section.
   4. Navigate to it anywhere with:
        st.session_state.page = "my_page"; st.rerun()
-
-Fixes implemented:
-  #9  -- Page refresh restores the user's current page & in-progress
-        analysis via the draft_sessions table.
-  #10 -- Logo injected via CSS; auth page keeps text-only logo.
 """
 
 import streamlit as st
@@ -61,7 +56,13 @@ st.set_page_config(
 )
 
 # ── Internal imports (after set_page_config) ──────────────────────────────────
-from modules.database import init_db, validate_token, get_draft
+from modules.database import init_db as _init_db, validate_token, get_draft
+
+
+@st.cache_resource
+def init_db():
+    """Run once per server process — not on every Streamlit rerun."""
+    _init_db()
 from modules.ui.css import inject_css
 from modules.pages.auth      import page_auth, page_profile
 from modules.pages.home      import page_home

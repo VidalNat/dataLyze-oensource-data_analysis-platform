@@ -20,7 +20,7 @@ CONTRIBUTING -- to add a new KPI card to this page:
 import streamlit as st
 from html import escape
 from modules.database import (
-    validate_token, revoke_token, log_activity,
+    revoke_token, log_activity,
     get_user_sessions, get_session_charts,
     rename_session_db, delete_session_db,
 )
@@ -30,19 +30,9 @@ from modules.analysis import ANALYSIS_OPTIONS
 
 def page_home():
     token = st.query_params.get("t", "")
-    if token and "user_id" not in st.session_state:
-        restored = validate_token(token)
-        if restored:
-            st.session_state.user_id  = restored[0]
-            st.session_state.username = restored[1]
-            st.session_state.page     = "home"
-            st.rerun()
-        else:
-            # Token is invalid or expired — clear it so the user isn't stuck
-            # in a redirect loop between home and auth.
-            st.query_params.clear()
-            st.session_state.page = "auth"
-            st.rerun()
+    # Token validation is handled once in app.py::main() before routing.
+    # Re-validating here would hit the DB on every home page rerun unnecessarily.
+    # Only handle the edge case where the session was lost mid-navigation.
 
     # Logo + logout row
     lc1, lc2, lc3 = st.columns([13, 1, 1])
@@ -100,7 +90,7 @@ def page_home():
             '<div class="kpi-lbl">Available analysis</div></div>',
             unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
     if st.button("🚀 Start New Analysis", use_container_width=False):
         log_activity(st.session_state.user_id, "new_analysis_started")
         # Clear any leftover draft / editing state for a fresh start
@@ -115,6 +105,8 @@ def page_home():
     if not sessions:
         st.info("No saved sessions yet. Start your first analysis above!")
     else:
+        if len(sessions) > 8:
+            st.caption(f"Showing 8 of {len(sessions)} sessions — older sessions not shown.")
         for s in sessions[:8]:
             sid, sname, fname, rows, cols, atypes, created = s
             safe_sname = escape(str(sname))
@@ -127,7 +119,7 @@ def page_home():
                     f'<small>{safe_fname} · {rows}×{cols} · {safe_created[:16]}</small></div>',
                     unsafe_allow_html=True)
             with sb:
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.write("")
                 if st.button("View", key=f"v_{sid}"):
                     st.session_state.view_session_id   = sid
                     st.session_state.view_session_name = sname
@@ -141,7 +133,7 @@ def page_home():
                                  f"session_id={sid}", sid)
                     st.session_state.page = "dashboard"; st.rerun()
             with sc:
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.write("")
                 if st.button("✏️ Edit", key=f"edit_btn_{sid}"):
                     saved = get_session_charts(sid, st.session_state.user_id)
                     # saved is list of 7-tuples: (uid, title, fig, desc, auto, ctype, meta)
@@ -168,11 +160,11 @@ def page_home():
                                  f"session_id={sid}", sid)
                     st.session_state.page = "analysis"; st.rerun()
             with sd:
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.write("")
                 if st.button("🔤", key=f"rename_btn_{sid}", help="Rename this session"):
                     st.session_state[f"renaming_{sid}"] = True
             with se:
-                st.markdown("<br>", unsafe_allow_html=True)
+                st.write("")
                 if st.button("🗑️", key=f"del_btn_{sid}", help="Delete this session"):
                     st.session_state[f"confirm_del_{sid}"] = True
 

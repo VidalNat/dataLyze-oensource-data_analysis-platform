@@ -40,6 +40,115 @@ import pandas as pd
 import datetime
 
 
+def _preview_conversion(series: pd.Series, new_dtype: str) -> dict:
+    """
+    Dry-run a dtype conversion and return stats + sample rows.
+    Never mutates the original series.
+
+    Returns dict with keys:
+        total       -- total rows
+        success     -- rows that will convert cleanly
+        new_nulls   -- extra nulls introduced (conversion failures)
+        pct         -- success % (0-100 float)
+        sample_df   -- DataFrame with 'Before' / 'After' columns (up to 8 rows)
+        dtype_after -- actual dtype of the converted result
+    """
+    import datetime
+
+    total = len(series)
+    n_null_before = int(series.isna().sum())
+
+    try:
+        if new_dtype == "datetime64[ns]":
+            converted = pd.to_datetime(series, errors="coerce")
+
+        elif new_dtype == "date":
+            converted = pd.to_datetime(series, errors="coerce").dt.date
+
+        elif new_dtype == "time":
+            src = series.astype(str).str.strip()
+            parsed = pd.to_datetime("1970-01-01 " + src, errors="coerce")
+            mask_failed = parsed.isna()
+            if mask_failed.any():
+                parsed[mask_failed] = pd.to_datetime(src[mask_failed], errors="coerce")
+            # Try AM/PM formats for failed rows
+            still_failed = parsed.isna()
+            if still_failed.any():
+                for fmt in ("%I:%M %p", "%I:%M:%S %p", "%I %p"):
+                    remaining = still_failed & parsed.isna()
+                    if not remaining.any():
+                        break
+                    parsed[remaining] = pd.to_datetime(
+                        "1970-01-01 " + src[remaining], format=f"1970-01-01 {fmt}",
+                        errors="coerce"
+                    )
+            converted = parsed.dt.strftime("%H:%M:%S").where(parsed.notna(), other=None)
+
+        elif new_dtype == "timedelta64[ns]":
+            src = series
+            if total > 0 and isinstance(series.iloc[0], datetime.time):
+                src = series.apply(
+                    lambda v: f"{v.hour}:{v.minute:02d}:{v.second:02d}"
+                    if isinstance(v, datetime.time) else str(v)
+                )
+            converted = pd.to_timedelta(src.astype(str), errors="coerce")
+
+        elif new_dtype in ("string", "object"):
+            converted = series.astype(str)
+
+        elif new_dtype == "category":
+            converted = series.astype("category")
+
+        elif new_dtype == "bool":
+            src = series.astype(str).str.strip().str.lower()
+            converted = src.map({
+                "true": True, "1": True, "yes": True,
+                "false": False, "0": False, "no": False,
+            })
+
+        elif new_dtype in ("int64", "float64"):
+            converted = pd.to_numeric(series, errors="coerce").astype(new_dtype)
+
+        else:
+            converted = series.astype(new_dtype)
+
+    except Exception as exc:
+        return {"error": str(exc)}
+
+    n_null_after  = int(pd.Series(converted).isna().sum())
+    new_nulls     = max(0, n_null_after - n_null_before)
+    success       = total - new_nulls
+    pct           = round((success / total) * 100, 1) if total else 0.0
+
+    # Build a representative sample: first few rows + any rows that WILL fail
+    idx_fail = pd.Series(converted).isna() & series.notna()
+    sample_idx = list(range(min(6, total)))
+    fail_idx   = [i for i in idx_fail[idx_fail].index[:3] if i not in sample_idx]
+    sample_idx = list(dict.fromkeys(sample_idx + fail_idx))[:8]
+
+    before_vals = series.iloc[sample_idx].reset_index(drop=True)
+    after_vals  = pd.Series(converted).iloc[sample_idx].reset_index(drop=True)
+
+    sample_df = pd.DataFrame({
+        "Before": before_vals.astype(str),
+        "After":  after_vals.astype(str).replace("None", "⚠️ null").replace("NaT", "⚠️ null").replace("nan", "⚠️ null"),
+    })
+
+    try:
+        dtype_after = str(pd.Series(converted).dtype)
+    except Exception:
+        dtype_after = new_dtype
+
+    return {
+        "total":      total,
+        "success":    success,
+        "new_nulls":  new_nulls,
+        "pct":        pct,
+        "sample_df":  sample_df,
+        "dtype_after": dtype_after,
+    }
+
+
 def show_dtype_transformer(df):
     st.markdown("---")
     st.markdown("## 🔍 Data Type Inspector & Transformer")
@@ -68,6 +177,58 @@ def show_dtype_transformer(df):
         f"Convert '{col_to_convert}' from `{current_dtype}` to:",
         options=target_options, index=default_idx,
         key=f"dtype_target_{col_to_convert}")
+
+    # ── Conversion Preview ────────────────────────────────────────────────────
+    prev_key = f"_preview_{col_to_convert}_{new_dtype}"
+    if st.button("🔎 Preview Conversion", key=f"preview_dtype_{col_to_convert}"):
+        st.session_state[prev_key] = _preview_conversion(df[col_to_convert], new_dtype)
+
+    preview = st.session_state.get(prev_key)
+    if preview:
+        if "error" in preview:
+            st.error(f"Preview failed: {preview['error']}")
+        else:
+            pct       = preview["pct"]
+            new_nulls = preview["new_nulls"]
+            total     = preview["total"]
+            success   = preview["success"]
+
+            if pct == 100:
+                colour, icon = "#10b981", "✅"
+            elif pct >= 80:
+                colour, icon = "#f59e0b", "⚠️"
+            else:
+                colour, icon = "#ef4444", "❌"
+
+            null_line = (
+                f'<br><span style="color:#ef4444;font-size:0.82rem;">'
+                f'⚠️ {new_nulls:,} value(s) will become <b>null</b> (unconvertible → NaN)</span>'
+                if new_nulls else
+                f'<br><span style="color:#10b981;font-size:0.82rem;">'
+                f'No new null values will be introduced.</span>'
+            )
+            st.markdown(
+                f'<div style="background:rgba(0,0,0,0.15);border-radius:12px;'
+                f'padding:0.9rem 1.1rem;margin:0.5rem 0;">'
+                f'<span style="font-size:1.05rem;font-weight:700;color:{colour};">'
+                f'{icon} {pct}% success rate</span>'
+                f'<span style="color:var(--text-muted);font-size:0.82rem;margin-left:0.8rem;">'
+                f'— {success:,} of {total:,} values will convert cleanly</span>'
+                f'{null_line}'
+                f'<span style="color:var(--text-muted);font-size:0.78rem;margin-left:0.8rem;">'
+                f' · Result dtype: <code>{preview["dtype_after"]}</code></span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            st.caption("Sample — before vs after (rows that fail show ⚠️ null):")
+            st.dataframe(
+                preview["sample_df"].style.apply(
+                    lambda col: ["color:#ef4444" if "null" in str(v) else "" for v in col],
+                    subset=["After"],
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     if st.button("🔄 Apply Transformation", key=f"apply_dtype_{col_to_convert}"):
         with st.spinner(f"Converting `{col_to_convert}` to {new_dtype}…"):
@@ -122,10 +283,11 @@ def show_dtype_transformer(df):
                 else:
                     converted = df[col_to_convert].astype(new_dtype)
 
-                # Report how many values could not convert
                 n_null_before = int(df[col_to_convert].isna().sum())
                 df[col_to_convert] = converted
                 st.session_state.df = df
+                # Clear preview cache now that the conversion is applied
+                st.session_state.pop(prev_key, None)
                 n_null_after = int(df[col_to_convert].isna().sum())
                 new_nulls = max(0, n_null_after - n_null_before)
                 msg = f"✅ Converted `{col_to_convert}` to `{new_dtype}`"
