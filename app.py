@@ -39,7 +39,7 @@ CONTRIBUTING -- adding a new page
   3. Add  elif p == "my_page": page_my_page()  in the router section.
   4. Navigate to it anywhere with:
        st.session_state.page = "my_page"; st.rerun()
-"""x
+"""
 import streamlit as st
 
 # Hide Streamlit's default loading spinner

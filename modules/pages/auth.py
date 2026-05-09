@@ -17,6 +17,9 @@ Logo is text-only on the auth page per spec (#10).
 """
 modules/pages/auth.py -- Login, registration, and profile management page.
 """
+"""
+modules/pages/auth.py -- Login, registration, and profile management page.
+"""
 import os
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
