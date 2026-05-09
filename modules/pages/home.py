@@ -28,7 +28,7 @@ from modules.ui.css import inject_footer, render_logo
 from modules.analysis import ANALYSIS_OPTIONS
 
 
-def page_home():
+def page_home():  # Home dashboard — shown immediately after login.
     token = st.query_params.get("t", "")
     # Token validation is handled once in app.py::main() before routing.
     # Re-validating here would hit the DB on every home page rerun unnecessarily.
@@ -68,7 +68,7 @@ def page_home():
         </div>
     </div>""", unsafe_allow_html=True)
 
-    sessions = get_user_sessions(st.session_state.user_id)
+    sessions = get_user_sessions(st.session_state.user_id)  # Fetch up to 20 saved sessions for this user, newest first.
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(
@@ -91,7 +91,7 @@ def page_home():
             unsafe_allow_html=True)
 
     st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
-    if st.button("🚀 Start New Analysis", use_container_width=False):
+    if st.button("🚀 Start New Analysis", use_container_width=False):  # Clear any leftover state from a previous session before starting fresh.
         log_activity(st.session_state.user_id, "new_analysis_started")
         # Clear any leftover draft / editing state for a fresh start
         for k in ["editing_session_id", "editing_session_name", "editing_file_name",
@@ -107,7 +107,7 @@ def page_home():
     else:
         if len(sessions) > 8:
             st.caption(f"Showing 8 of {len(sessions)} sessions — older sessions not shown.")
-        for s in sessions[:8]:
+        for s in sessions[:8]:  # Show max 8 sessions on the home page; older ones are still in the DB.
             sid, sname, fname, rows, cols, atypes, created = s
             safe_sname = escape(str(sname))
             safe_fname = escape(str(fname or ""))
@@ -120,7 +120,7 @@ def page_home():
                     unsafe_allow_html=True)
             with sb:
                 st.write("")
-                if st.button("View", key=f"v_{sid}"):
+                if st.button("View", key=f"v_{sid}"):  # Opens the session in read-only dashboard mode.
                     st.session_state.view_session_id   = sid
                     st.session_state.view_session_name = sname
                     # Clear stale _view_charts so dashboard reloads fresh
@@ -134,7 +134,7 @@ def page_home():
                     st.session_state.page = "dashboard"; st.rerun()
             with sc:
                 st.write("")
-                if st.button("✏️ Edit", key=f"edit_btn_{sid}"):
+                if st.button("✏️ Edit", key=f"edit_btn_{sid}"):  # Loads all charts + metadata from DB into session_state, goes to analysis.
                     saved = get_session_charts(sid, st.session_state.user_id)
                     # saved is list of 7-tuples: (uid, title, fig, desc, auto, ctype, meta)
                     st.session_state.charts = [(uid, title, fig) for uid, title, fig, *_ in saved]
@@ -153,7 +153,7 @@ def page_home():
                     # Always clear this flag so dashboard re-loads notes fresh
                     # for the newly opened session (guards against stale flag
                     # from a previously edited session in the same browser tab).
-                    st.session_state.pop("_edit_notes_loaded",      None)
+                    st.session_state.pop("_edit_notes_loaded",      None)  # Clear this flag so notes reload fresh for the newly opened session.
                     st.session_state.pop("_analysis_notes_loaded",  None)
                     st.session_state.pop("_notes_shadow",           None)
                     log_activity(st.session_state.user_id, "session_edit_started",

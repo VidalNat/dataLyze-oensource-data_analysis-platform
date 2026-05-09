@@ -40,7 +40,7 @@ import pandas as pd
 import datetime
 
 
-def _preview_conversion(series: pd.Series, new_dtype: str) -> dict:
+def _preview_conversion(series: pd.Series, new_dtype: str) -> dict:  # Dry-run a dtype cast and return stats + sample — never mutates series.
     """
     Dry-run a dtype conversion and return stats + sample rows.
     Never mutates the original series.
@@ -149,7 +149,7 @@ def _preview_conversion(series: pd.Series, new_dtype: str) -> dict:
     }
 
 
-def show_dtype_transformer(df):
+def show_dtype_transformer(df):  # Optional: drop, rename, fill NA, or cast columns before analysis.
     st.markdown("---")
     st.markdown("## 🔍 Data Type Inspector & Transformer")
 
@@ -301,7 +301,7 @@ def show_dtype_transformer(df):
     return df
 
 
-def show_column_classifier(df):
+def show_column_classifier(df):  # CRITICAL: sets num_cols/cat_cols/dt_cols used by ALL analysis runners.
     all_cols = df.columns.tolist()
 
     auto_dt = df.select_dtypes(include=['datetime','datetimetz','timedelta']).columns.tolist()

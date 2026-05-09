@@ -53,15 +53,15 @@ import plotly.io as pio
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Default 8-colour palette -- used as a fallback when no palette is selected.
-COLORS = ["#4f6ef7", "#8b5cf6", "#06b6d4", "#f59e0b",
+COLORS = ["#4f6ef7", "#8b5cf6", "#06b6d4", "#f59e0b",  # Default 8-colour palette — fallback when no palette is selected.
           "#ef4444", "#10b981", "#ec4899", "#f97316"]
 
 # Red-to-green gradient used for "danger" colour scales (e.g. missing % charts).
-DANGER = ["#bbf7d0", "#fbbf24", "#ef4444"]
+DANGER = ["#bbf7d0", "#fbbf24", "#ef4444"]  # Red→yellow→green gradient for data quality charts.
 
 # Named palettes shown in the colour-palette selectbox on the analysis page.
 # Keys are display labels; values are ordered lists of 8 hex colours.
-PALETTES = {
+PALETTES = {  # Named palettes shown in the UI colour selector. First = default.
     "🔵 Default Blue-Purple": ["#4f6ef7", "#8b5cf6", "#06b6d4", "#f59e0b",
                                 "#ef4444", "#10b981", "#ec4899", "#f97316"],
     "🌈 Vibrant":             ["#e63946", "#f4a261", "#2a9d8f", "#457b9d",
@@ -85,7 +85,7 @@ PALETTES = {
 # Chart layout defaults
 # ─────────────────────────────────────────────────────────────────────────────
 
-def chart_layout() -> dict:
+def chart_layout() -> dict:  # Apply to every figure: fig.update_layout(**chart_layout()).
     """
     Return a dict of Plotly layout kwargs used by every chart in Lytrize.
 
@@ -203,15 +203,15 @@ def apply_hover_format(fig) -> None:
 # on the upload page (modules/ui/column_tools.py :: show_column_classifier()).
 # Use these helpers in runner modules -- never read session_state directly.
 
-def num_cols() -> list:
+def num_cols() -> list:  # Read the confirmed numeric column list set on the upload page.
     """Return the list of numeric column names confirmed by the user."""
     return st.session_state.get("num_cols", [])
 
-def cat_cols() -> list:
+def cat_cols() -> list:  # Read the confirmed categorical column list set on the upload page.
     """Return the list of categorical column names confirmed by the user."""
     return st.session_state.get("cat_cols", [])
 
-def dt_cols() -> list:
+def dt_cols() -> list:  # Read the confirmed date/time column list set on the upload page.
     """Return the list of date/time column names confirmed by the user."""
     return st.session_state.get("dt_cols", [])
 
@@ -220,7 +220,7 @@ def dt_cols() -> list:
 # Insight text utilities
 # ─────────────────────────────────────────────────────────────────────────────
 
-def clean_insight_text(text) -> str:
+def clean_insight_text(text) -> str:  # Strip Markdown bold/italic from auto-generated insight strings.
     """
     Strip Markdown formatting from an auto-generated insight string.
 
@@ -319,7 +319,7 @@ def _as_list(values) -> list:
 # Chart serialisation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def charts_to_json(charts: list) -> str:
+def charts_to_json(charts: list) -> str:  # Serialise chart list to a JSON string for storage in the DB.
     """
     Serialise the active chart list to a JSON string for database storage.
 
@@ -364,7 +364,7 @@ def charts_to_json(charts: list) -> str:
 # Auto-insight engine
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_chart_insights(chart_type: str, title: str, fig,
+def generate_chart_insights(chart_type: str, title: str, fig,  # Auto-insight engine: reads a Plotly figure → plain-English strings.
                              col_descriptions: dict = None) -> list:
     """
     Produce plain-English observations from a Plotly figure.

@@ -26,7 +26,7 @@ from typing import Union
 
 # ── Memory reporting ──────────────────────────────────────────────────────────
 
-def mem_mb(df: pd.DataFrame) -> float:
+def mem_mb(df: pd.DataFrame) -> float:  # Returns DataFrame RAM usage in megabytes.
     """Return total DataFrame memory usage in megabytes (deep=True)."""
     return df.memory_usage(deep=True).sum() / 1_048_576
 
@@ -39,7 +39,7 @@ _CAT_THRESHOLD = 0.50   # if > 50 % of rows are unique, keep as object
 _CAT_MAX_UNIQ  = 1_000  # hard cap -- too many categories = no gain
 
 
-def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:  # Shrink DataFrame memory: downcast ints/floats, Categorical strings.
     """
     Shrink a DataFrame's memory footprint without losing precision or data.
 
@@ -88,7 +88,7 @@ _SAMPLE_NOTE = (
 )
 
 
-def sample_for_plot(
+def sample_for_plot(  # Returns (sample_df, was_sampled) — keeps Plotly fast on large data.
     df: pd.DataFrame,
     n: int = 50_000,
     random_state: int = 42,
@@ -122,7 +122,7 @@ def sample_note(n: int, total: int) -> str:
 
 # ── Fast CSV reader ───────────────────────────────────────────────────────────
 
-def read_csv_fast(file, **kwargs) -> pd.DataFrame:
+def read_csv_fast(file, **kwargs) -> pd.DataFrame:  # read_csv with dtype optimisation applied automatically.
     """
     Read a CSV file and return a dtype-optimised DataFrame.
 
@@ -146,7 +146,7 @@ def read_csv_fast(file, **kwargs) -> pd.DataFrame:
 
 # ── Lazy Excel helpers ────────────────────────────────────────────────────────
 
-def get_sheet_names(file) -> list[str]:
+def get_sheet_names(file) -> list[str]:  # Sheet name list without reading any cell data — very fast.
     """
     Return the list of sheet names without loading any cell data.
 
@@ -163,7 +163,7 @@ def get_sheet_names(file) -> list[str]:
         return xl.sheet_names
 
 
-def read_excel_sheet(file, sheet_name: Union[str, int] = 0) -> pd.DataFrame:
+def read_excel_sheet(file, sheet_name: Union[str, int] = 0) -> pd.DataFrame:  # Read ONE sheet without loading the whole workbook into memory.
     """
     Read a SINGLE sheet from an Excel file with dtype optimisation.
 

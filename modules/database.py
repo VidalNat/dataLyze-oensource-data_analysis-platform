@@ -60,16 +60,16 @@ from typing import Optional
 # ── Environment configuration ─────────────────────────────────────────────────
 # Override DB_PATH via LYTRIZE_DB_PATH env var to point at a custom SQLite file.
 # Override to Postgres by setting DATABASE_URL to a postgresql:// URI.
-DB_PATH = os.environ.get("LYTRIZE_DB_PATH", "lytrize.db")
-DB_URL  = os.environ.get("DATABASE_URL", "")
-_PG     = DB_URL.startswith(("postgresql://", "postgres://"))
+DB_PATH = os.environ.get("LYTRIZE_DB_PATH", "lytrize.db")  # SQLite file path; override via LYTRIZE_DB_PATH env var.
+DB_URL  = os.environ.get("DATABASE_URL", "")  # Postgres connection string; empty string = use SQLite.
+_PG     = DB_URL.startswith(("postgresql://", "postgres://"))  # True when Postgres is configured; False = SQLite mode.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Backend-agnostic connection helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _connect():
+def _connect():  # Returns a fresh DB connection — always close it after use.
     """
     Return a new database connection for the configured backend.
 
@@ -80,14 +80,14 @@ def _connect():
     if _PG:
         import psycopg2
         conn = psycopg2.connect(DB_URL)
-        conn.autocommit = False
+        conn.autocommit = False  # Postgres requires explicit commit() for every write.
         return conn
     else:
         import sqlite3
         return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 
-def _ph(sql: str) -> str:
+def _ph(sql: str) -> str:  # Swap ? placeholders to %s for Postgres compatibility.
     """
     Translate SQLite-style ? placeholders to Postgres %s placeholders.
 
@@ -100,7 +100,7 @@ def _ph(sql: str) -> str:
     return sql
 
 
-def _last_id(cursor) -> int:
+def _last_id(cursor) -> int:  # Get the last inserted row ID in a backend-agnostic way.
     """Return the last auto-generated row ID in a backend-agnostic way."""
     if _PG:
         cursor.execute("SELECT lastval()")
@@ -137,7 +137,7 @@ def _execute_fetchall(conn, query: str, params=()):
 # Schema -- CREATE IF NOT EXISTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-def init_db() -> None:
+def init_db() -> None:  # Create all tables; safe to call every startup (IF NOT EXISTS).
     """
     Create all required tables if they do not already exist.
 
@@ -279,7 +279,7 @@ def init_db() -> None:
 # Password hashing
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _hash(pw: str, salt: Optional[str] = None) -> str:
+def _hash(pw: str, salt: Optional[str] = None) -> str:  # PBKDF2-HMAC-SHA256, 260,000 iterations, random per-user salt.
     """
     Hash a password using PBKDF2-HMAC-SHA256 with a random per-user salt.
 
@@ -296,7 +296,7 @@ def _hash(pw: str, salt: Optional[str] = None) -> str:
     return f"{salt}${dk.hex()}"
 
 
-def _verify(pw: str, stored: str) -> bool:
+def _verify(pw: str, stored: str) -> bool:  # Constant-time comparison to prevent timing attacks.
     """
     Verify a plain-text password against a stored hash.
 
@@ -305,7 +305,7 @@ def _verify(pw: str, stored: str) -> bool:
 
     Uses hmac.compare_digest to prevent timing attacks.
     """
-    if "$" in stored:
+    if "$" in stored:  # New salted format: 'salt$hash'. No $ = legacy bare sha256.
         salt, _ = stored.split("$", 1)
         return hmac.compare_digest(_hash(pw, salt), stored)
     # Legacy format: bare sha256 without salt.
@@ -316,7 +316,7 @@ def _verify(pw: str, stored: str) -> bool:
 # Activity logging
 # ─────────────────────────────────────────────────────────────────────────────
 
-def log_activity(user_id: int, action_type: str, detail: str = "",
+def log_activity(user_id: int, action_type: str, detail: str = "",  # Append-only audit log. Silently no-ops on any error — never blocks UI.
                  session_id=None) -> None:
     """
     Append an event to the user_activity audit log.
@@ -347,7 +347,7 @@ def log_activity(user_id: int, action_type: str, detail: str = "",
 # Authentication
 # ─────────────────────────────────────────────────────────────────────────────
 
-def register_user(username: str, email: str, password: str):
+def register_user(username: str, email: str, password: str):  # Returns (True, 'msg') on success, (False, 'reason') on failure.
     """
     Create a new user account.
 
@@ -374,7 +374,7 @@ def register_user(username: str, email: str, password: str):
         conn.close()
 
 
-def login_user(username: str, password: str):
+def login_user(username: str, password: str):  # Returns (user_id, username) on success, None on failure.
     """
     Validate login credentials.
 
@@ -398,7 +398,7 @@ def login_user(username: str, password: str):
     if not _verify(password, stored_hash):
         return None
     # Upgrade legacy bare-sha256 hash to salted PBKDF2 silently.
-    if "$" not in stored_hash:
+    if "$" not in stored_hash:  # Legacy hash detected — upgrade to salted PBKDF2 silently on login.
         try:
             upd = _connect()
             upd.execute(
@@ -411,11 +411,11 @@ def login_user(username: str, password: str):
     return uid, uname
 
 
-def create_token(user_id: int, username: str) -> str:
+def create_token(user_id: int, username: str) -> str:  # 7-day persistent login token — written to ?t= URL param.
 
-    token = uuid.uuid4().hex
+    token = uuid.uuid4().hex  # Random 32-char hex token — cryptographically unpredictable.
 
-    expires = (
+    expires = (  # Token expiry: 7 days from now, stored as ISO-8601 string.
         datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(days=7)
     ).isoformat()
@@ -454,7 +454,7 @@ def create_token(user_id: int, username: str) -> str:
     return token
 
 
-def validate_token(token: str):
+def validate_token(token: str):  # Returns (user_id, username) if valid + unexpired, else None.
     """
     Validate a login token and return the associated user.
 
@@ -497,7 +497,7 @@ def validate_token(token: str):
     return row[0], row[1]
 
 
-def revoke_token(token: str) -> None:
+def revoke_token(token: str) -> None:  # Called on logout — deletes the token row from login_tokens.
     """Delete a login token (called on sign-out)."""
     conn = _connect()
     _execute(conn, _ph("DELETE FROM login_tokens WHERE token=?"), (token,))
@@ -509,7 +509,7 @@ def revoke_token(token: str) -> None:
 # Draft session persistence  (auto-save / resume on page refresh)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def save_draft(user_id: int, page: str, charts_json: str, file_name: str = "",
+def save_draft(user_id: int, page: str, charts_json: str, file_name: str = "",  # Upsert (one row per user) — keeps the latest in-progress state.
                editing_session_id=None, editing_session_name=None,
                dashboard_title: str = "", kpis_json: str = "[]",
                chart_meta_json: str = "{}", layout_mode: str = "portrait") -> None:
@@ -572,7 +572,7 @@ def save_draft(user_id: int, page: str, charts_json: str, file_name: str = "",
         pass
 
 
-def get_draft(user_id: int) -> Optional[dict]:
+def get_draft(user_id: int) -> Optional[dict]:  # Returns a dict of draft fields, or None if no draft exists.
     """
     Retrieve the stored draft for a user.
 
@@ -596,7 +596,7 @@ def get_draft(user_id: int) -> Optional[dict]:
         return None
 
 
-def clear_draft(user_id: int) -> None:
+def clear_draft(user_id: int) -> None:  # Called after a successful session save — removes the draft row.
     """Delete the draft row for a user (called after a successful session save)."""
     try:
         conn = _connect()
@@ -611,7 +611,7 @@ def clear_draft(user_id: int) -> None:
 # Sessions CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
-def save_session_db(user_id: int, session_name: str, file_name: str,
+def save_session_db(user_id: int, session_name: str, file_name: str,  # INSERT a new session row; returns the new session's DB ID.
                     rows: int, cols: int, analysis_types: list,
                     charts_json: str, dashboard_title: str = "",
                     kpis_json: str = "[]", layout_mode: str = "portrait") -> int:
@@ -648,7 +648,7 @@ def save_session_db(user_id: int, session_name: str, file_name: str,
     return sid
 
 
-def rename_session_db(session_id: int, new_name: str, user_id=None) -> None:
+def rename_session_db(session_id: int, new_name: str, user_id=None) -> None:  # user_id guard prevents renaming sessions belonging to others.
     """
     Rename a saved session.
 
@@ -668,7 +668,7 @@ def rename_session_db(session_id: int, new_name: str, user_id=None) -> None:
     conn.close()
 
 
-def delete_session_db(session_id: int, user_id: int) -> None:
+def delete_session_db(session_id: int, user_id: int) -> None:  # user_id guard prevents cross-account deletion.
     """Delete a saved session. The user_id guard prevents cross-account deletion."""
     conn = _connect()
     _execute(conn, 
@@ -678,7 +678,7 @@ def delete_session_db(session_id: int, user_id: int) -> None:
     conn.close()
 
 
-def delete_user_db(user_id: int) -> bool:
+def delete_user_db(user_id: int) -> bool:  # Delete in FK order: tokens → drafts → activity → sessions → users.
     """
     Permanently delete a user account and all associated data.
 
@@ -705,7 +705,7 @@ def delete_user_db(user_id: int) -> bool:
         return False
 
 
-def update_session_db(session_id: int, session_name: str, charts_json: str,
+def update_session_db(session_id: int, session_name: str, charts_json: str,  # UPDATE an existing session in-place (edit mode).
                       analysis_types: list, user_id: int,
                       dashboard_title: str = "", kpis_json: str = "[]",
                       layout_mode: str = "portrait") -> None:
@@ -729,7 +729,7 @@ def update_session_db(session_id: int, session_name: str, charts_json: str,
                  f"session_id={session_id} name='{session_name}'")
 
 
-def get_user_sessions(user_id: int) -> list:
+def get_user_sessions(user_id: int) -> list:  # Fetch the 20 most recent sessions for a user, newest first.
     """
     Fetch the 20 most recent sessions for a user (newest first).
 
@@ -749,7 +749,7 @@ def get_user_sessions(user_id: int) -> list:
     return rows
 
 
-def get_session_meta(session_id: int, user_id=None) -> Optional[dict]:
+def get_session_meta(session_id: int, user_id=None) -> Optional[dict]:  # Load dashboard title, KPIs, and layout mode for a session.
     """
     Fetch dashboard metadata for a session (title, KPIs, layout mode).
 
@@ -786,7 +786,7 @@ def get_session_meta(session_id: int, user_id=None) -> Optional[dict]:
     return None
 
 
-def get_session_charts(session_id: int, user_id=None) -> list:
+def get_session_charts(session_id: int, user_id=None) -> list:  # Deserialise stored charts to (uid, title, fig, ...) tuples.
     """
     Load and deserialise the charts stored in a saved session.
 

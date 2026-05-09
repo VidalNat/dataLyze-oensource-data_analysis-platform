@@ -43,18 +43,18 @@ def _h(text) -> str:
 
 
 # ── HTML Export ───────────────────────────────────────────────────────────────
-def generate_html_report(charts, session_name, orientation="portrait",
+def generate_html_report(charts, session_name, orientation="portrait",  # Produces a self-contained HTML file; open in browser → print → PDF.
                          kpis=None, dashboard_title="", grid_cols_n=2,
-                         inline_plotly=False):
-    is_landscape = orientation == "landscape"
+                         inline_plotly=False):  # True = embed Plotly figures as JSON (smaller); False = CDN script.
+    is_landscape = orientation == "landscape"  # Landscape uses a wider max-width and 3 columns instead of 2.
     max_width    = "1400px" if is_landscape else "1100px"
     # Use grid_cols_n for the CSS grid; full-width items span all columns
-    grid_css_cols = f"repeat({grid_cols_n}, 1fr)"
+    grid_css_cols = f"repeat({grid_cols_n}, 1fr)"  # CSS grid column count matches the layout_mode setting.
     title        = dashboard_title or session_name
     safe_title   = _h(title)
 
     # KPI strip
-    kpi_html = ""
+    kpi_html = ""  # KPI strip rendered above the chart grid if any KPIs are defined.
     if kpis:
         change_style = lambda k: (
             f'color:{"#10b981" if k.get("change_pct",0)>=0 else "#ef4444"};font-weight:700'

@@ -57,7 +57,7 @@ from modules.ui.css import inject_footer, render_logo
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
-def _dash_sync_notes() -> None:
+def _dash_sync_notes() -> None:  # Snapshot desc_{uid} values to _notes_shadow before KPI-triggered reruns.
     """
     Snapshot all live desc_{uid} note values into _notes_shadow before any
     st.rerun() that fires mid-page (e.g. KPI add/remove, chart delete from
@@ -73,7 +73,7 @@ def _dash_sync_notes() -> None:
     for k, v in list(st.session_state.items()):
         if k.startswith("desc_") and isinstance(v, str):
             shadow[k[5:]] = v   # strip "desc_" prefix → uid
-def _persist():
+def _persist():  # Write all dashboard state to draft_sessions for refresh resilience.
     uid = st.session_state.get("user_id")
     if not uid:
         return
@@ -92,21 +92,21 @@ def _persist():
     )
 
 
-def _meta(uid):
+def _meta(uid):  # Get or initialise the chart_meta_{uid} dict from session_state.
     k = f"chart_meta_{uid}"
     if k not in st.session_state:
         st.session_state[k] = {}
     return st.session_state[k]
 
 
-def _set_meta(uid, **kw):
+def _set_meta(uid, **kw):  # Update specific keys in chart_meta_{uid}.
     k = f"chart_meta_{uid}"
     if k not in st.session_state:
         st.session_state[k] = {}
     st.session_state[k].update(kw)
 
 
-def _apply_axes(fig, x_lbl, y_lbl):
+def _apply_axes(fig, x_lbl, y_lbl):  # Apply custom X/Y axis labels to a deep copy of the figure.
     if not x_lbl and not y_lbl:
         return fig
     try:
@@ -118,7 +118,7 @@ def _apply_axes(fig, x_lbl, y_lbl):
         return fig
 
 
-def _apply_legend_names(fig, legend_names: dict):
+def _apply_legend_names(fig, legend_names: dict):  # Rename Plotly traces using the legend_names dict in chart_meta.
     """
     Rename Plotly traces using the {original_name: custom_name} mapping stored
     in chart_meta. Only renames traces that have a non-empty custom name set.
@@ -141,7 +141,7 @@ def _apply_legend_names(fig, legend_names: dict):
         return fig
 
 
-def _all_charts(viewing_saved):
+def _all_charts(viewing_saved):  # Returns chart list from view cache (view mode) or session_state (build).
     if viewing_saved:
         return st.session_state.get("_view_charts", [])
     out = []

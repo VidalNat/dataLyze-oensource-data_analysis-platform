@@ -56,7 +56,7 @@ from itertools import combinations
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _load_all_sheets(file) -> dict[str, pd.DataFrame]:
+def _load_all_sheets(file) -> dict[str, pd.DataFrame]:  # Read every sheet into a dict {sheet_name: DataFrame}.
     """Read every sheet from the uploaded Excel file into a dict."""
     file.seek(0)
     return pd.read_excel(file, sheet_name=None)   # sheet_name=None → all sheets
@@ -91,7 +91,7 @@ def _dtype_summary(df: pd.DataFrame) -> str:
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def show_excel_loader(uploaded_file) -> pd.DataFrame | None:
+def show_excel_loader(uploaded_file) -> pd.DataFrame | None:  # Two paths: single-sheet picker OR star-schema multi-sheet join.
     """
     Renders the sheet-picker UI for Excel files.
     Returns a merged/selected DataFrame when the user confirms,

@@ -31,7 +31,7 @@ from modules.charts import chart_layout, COLORS, cat_cols as _cat_cols
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Maps the sort-by string (from __init__.py _sort_map) to a pandas sort call.
-_SORT = {
+_SORT = {  # Maps sort-by label to a pandas sort lambda.
     "Value (Desc)":   lambda d, vc: d.sort_values(vc, ascending=False),
     "Value (Asc)":    lambda d, vc: d.sort_values(vc, ascending=True),
     "Category (A-Z)": lambda d, vc: d.sort_values(d.columns[0], ascending=True),
@@ -39,13 +39,13 @@ _SORT = {
 }
 
 
-def _sort(df, val_col: str, sort_by: str):
+def _sort(df, val_col: str, sort_by: str):  # Apply the requested sort to an aggregated DataFrame.
     """Apply the requested sort to an aggregated DataFrame."""
     fn = _SORT.get(sort_by)
     return fn(df, val_col) if fn else df
 
 
-def _apply_plotly_sort(fig, cats: list, is_horiz: bool, sort_by: str):
+def _apply_plotly_sort(fig, cats: list, is_horiz: bool, sort_by: str):  # Force Plotly to respect the DataFrame's pre-sorted category order.
     """
     Force Plotly to respect the DataFrame's pre-sorted category order.
 
@@ -61,7 +61,7 @@ def _apply_plotly_sort(fig, cats: list, is_horiz: bool, sort_by: str):
         is_horiz: True for horizontal bar charts.
         sort_by:  The sort key string (used only to decide whether to reverse).
     """
-    if is_horiz:
+    if is_horiz:  # Horizontal bars: reverse the list so highest item appears at top.
         # Reverse so the top-sorted item appears at the top of the Y-axis.
         fig.update_yaxes(categoryorder="array", categoryarray=list(reversed(cats)))
     else:
@@ -73,7 +73,7 @@ def _apply_plotly_sort(fig, cats: list, is_horiz: bool, sort_by: str):
 # Main runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_categorical(df, x_cols=None, y_cols=None, agg="mean", sort_by=None,
+def run_categorical(df, x_cols=None, y_cols=None, agg="mean", sort_by=None,  # Generate bar/column charts for each dimension × metric combination.
                     palette=None, top_n=None, dual_y_col=None, dual_y_agg=None,
                     direction="Vertical (Column chart)", **_):
     """
@@ -154,7 +154,7 @@ def run_categorical(df, x_cols=None, y_cols=None, agg="mean", sort_by=None,
                         **chart_layout())
                     fig.update_yaxes(title_text=f"{agg_lbl} {metric}", secondary_y=False)
                     fig.update_yaxes(title_text=f"{dual_agg_lbl} {dual}",   secondary_y=True)
-                    if is_horiz:
+                    if is_horiz:  # Horizontal bars: reverse the list so highest item appears at top.
                         fig.update_layout(margin=dict(l=20, r=100, t=56, b=20))
                     _apply_plotly_sort(fig, cats, is_horiz, sort_by)
 
@@ -179,7 +179,7 @@ def run_categorical(df, x_cols=None, y_cols=None, agg="mean", sort_by=None,
                         title=f"{d_lbl}: {agg_lbl} {metric} by {col}{top_sfx}",
                         showlegend=False,
                         **chart_layout())
-                    if is_horiz:
+                    if is_horiz:  # Horizontal bars: reverse the list so highest item appears at top.
                         fig.update_layout(margin=dict(l=20, r=100, t=56, b=20))
                     else:
                         fig.update_layout(margin=dict(l=20, r=20, t=56, b=60))
@@ -216,7 +216,7 @@ def run_categorical(df, x_cols=None, y_cols=None, agg="mean", sort_by=None,
                 title=f"{d_lbl} Counts: {col}{top_sfx}",
                 showlegend=False,
                 **chart_layout())
-            if is_horiz:
+            if is_horiz:  # Horizontal bars: reverse the list so highest item appears at top.
                 fig.update_layout(margin=dict(l=20, r=100, t=56, b=20))
             _apply_plotly_sort(fig, cats, is_horiz, sort_by)
 

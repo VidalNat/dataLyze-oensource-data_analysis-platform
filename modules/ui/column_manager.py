@@ -25,10 +25,10 @@ import pandas as pd
 from modules.database import log_activity
 
 
-def show_column_manager(df):
+def show_column_manager(df):  # Add Column / Remove Column UI shown on the upload page.
     st.markdown("---")
     st.markdown("## 🛠️ Column Manager")
-    tab_add, tab_remove = st.tabs(["➕ Add Column", "🗑️ Remove Column"])
+    tab_add, tab_remove = st.tabs(["➕ Add Column", "🗑️ Remove Column"])  # Two tabs: one to add derived columns, one to remove existing ones.
 
     with tab_add:
         num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -42,7 +42,7 @@ def show_column_manager(df):
 
         formula_str = date_col = part_to_extract = None
 
-        if calc_type == "Custom formula (use col names)":
+        if calc_type == "Custom formula (use col names)":  # User types a pandas eval() expression using column names.
             formula_str = st.text_input("Formula", key="custom_formula", placeholder="e.g. Sales / Units")
         elif calc_type in ("Column × Column", "Column ÷ Column", "Column + Column", "Column − Column"):
             op_map = {"Column × Column":"*","Column ÷ Column":"/","Column + Column":"+","Column − Column":"-"}

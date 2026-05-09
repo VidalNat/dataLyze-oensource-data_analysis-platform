@@ -33,11 +33,11 @@ from modules.charts import chart_layout, COLORS
 # Calendar order maps for named date-part groupings
 # ─────────────────────────────────────────────────────────────────────────────
 
-_MONTH = {m: i for i, m in enumerate(
+_MONTH = {m: i for i, m in enumerate(  # Calendar order map for 'Month Name' grouping so months sort correctly.
     ["January", "February", "March", "April", "May", "June",
      "July", "August", "September", "October", "November", "December"])}
 
-_WEEKDAY = {d: i for i, d in enumerate(
+_WEEKDAY = {d: i for i, d in enumerate(  # Calendar order map for 'Weekday Name' grouping.
     ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])}
 
 
@@ -45,7 +45,7 @@ _WEEKDAY = {d: i for i, d in enumerate(
 # Main runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,
+def run_time_series(df, x_cols=None, y_cols=None, agg="mean", date_part=None,  # Line charts over time; supports date-part grouping and dual Y-axis.
                     palette=None, dual_y_col=None, dual_y_agg=None, **_):
     """
     Generate time-series line charts for selected numeric metrics.

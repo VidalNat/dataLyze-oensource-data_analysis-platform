@@ -35,7 +35,7 @@ from modules.database import log_activity
 from modules.charts import chart_layout, DANGER
 
 
-def run_data_quality(df):
+def run_data_quality(df):  # Returns charts for missing values (bar + heatmap) and duplicates (donut).
     """
     Render interactive data quality widgets and return summary charts.
 

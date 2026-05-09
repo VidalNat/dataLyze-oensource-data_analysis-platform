@@ -14,7 +14,7 @@ import plotly.express as px
 from modules.charts import chart_layout, COLORS, num_cols as _num_cols
 
 
-def run_distribution(df, x_cols=None, y_cols=None, palette=None, **kwargs):
+def run_distribution(df, x_cols=None, y_cols=None, palette=None, **kwargs):  # One histogram + box-plot marginal per numeric column.
     """
     Generate histogram + box-plot marginal charts for numeric columns.
 
@@ -43,9 +43,9 @@ def run_distribution(df, x_cols=None, y_cols=None, palette=None, **kwargs):
                 df,
                 x=col,
                 color=color_col,
-                nbins=35,
-                marginal="box",
-                barmode="overlay",
+                nbins=35,  # 35 bins is a good default for most real-world datasets.
+                marginal="box",  # Box plot above the histogram shows quartiles and outliers.
+                barmode="overlay",  # Overlay mode keeps bars legible when split by category.
                 opacity=0.75,
                 title=f"Distribution: {col} by {color_col}",
                 color_discrete_sequence=pal,

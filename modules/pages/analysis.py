@@ -42,7 +42,7 @@ from modules.charts import charts_to_json, clean_insight_text, generate_chart_in
 from modules.ui.css import inject_footer, render_logo
 
 
-def _shadow_notes_sync() -> None:
+def _shadow_notes_sync() -> None:  # Copies desc_{uid} widget values to _notes_shadow before any rerun.
     """
     Copy all live desc_{uid} widget values into st.session_state._notes_shadow.
 
@@ -59,14 +59,14 @@ def _shadow_notes_sync() -> None:
             shadow[k[5:]] = v   # strip "desc_" prefix → uid
 
 
-def _sync_one_note(uid: str) -> None:
+def _sync_one_note(uid: str) -> None:  # on_change callback: immediately writes new note value to shadow dict.
     """on_change callback for a single notes text_area.  Writes the new value
     into the shadow dict immediately so it is never lost to a subsequent rerun."""
     val = st.session_state.get(f"desc_{uid}", "")
     st.session_state.setdefault("_notes_shadow", {})[uid] = val
 
 
-def _autosave() -> None:
+def _autosave() -> None:  # Two-level write: draft_sessions (always) + sessions table (if editing).
     """
     Persist the current chart/notes state to the database on every meaningful
     user action (chart add, delete, regen, settings save).
@@ -117,7 +117,7 @@ def _autosave() -> None:
             pass  # DB errors must never block the UI
 
 
-def _restore_edit_notes() -> None:
+def _restore_edit_notes() -> None:  # Re-seeds desc_{uid} keys for charts in the current editing session.
     """
     Re-seed desc_{uid} keys for all charts in the current editing session.
 
@@ -160,7 +160,7 @@ def _restore_edit_notes() -> None:
     st.session_state["_analysis_notes_loaded"] = True
 
 
-def _persist_draft(page="analysis"):
+def _persist_draft(page="analysis"):  # Write current chart/notes/KPI state to draft_sessions table.
     uid = st.session_state.get("user_id")
     if not uid:
         return
@@ -181,7 +181,7 @@ def _persist_draft(page="analysis"):
     )
 
 
-def _add_charts(new_charts, active):
+def _add_charts(new_charts, active):  # Append new charts, generate insights, log activity, persist draft.
     col_descs = st.session_state.get("col_descriptions", {})
     for uid, title, fig in new_charts:
         st.session_state[f"chart_type_{uid}"]    = active
@@ -196,7 +196,7 @@ def _add_charts(new_charts, active):
     _persist_draft()
 
 
-def page_analysis():
+def page_analysis():  # Analysis selection + chart generation page.
     token = st.query_params.get("t", "")
     if token and "user_id" not in st.session_state:
         restored = validate_token(token)

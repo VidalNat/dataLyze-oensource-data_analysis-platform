@@ -48,7 +48,7 @@ import json
 warnings.filterwarnings("ignore")
 
 # ── Page config MUST be the very first Streamlit call ─────────────────────────
-st.set_page_config(
+st.set_page_config(  # Must be the FIRST Streamlit call in the whole app — Streamlit enforces this.
     page_title="Lytrize",
     page_icon="assets/lytrize.ico",
     layout="wide",
@@ -59,8 +59,8 @@ st.set_page_config(
 from modules.database import init_db as _init_db, validate_token, get_draft
 
 
-@st.cache_resource
-def init_db():
+@st.cache_resource  # cache_resource runs this once per server process, not on every page rerun.
+def init_db():  # Thin wrapper so init_db() can be cached by @st.cache_resource above.
     """Run once per server process — not on every Streamlit rerun."""
     _init_db()
 from modules.ui.css import inject_css
@@ -75,7 +75,7 @@ from modules.pages.dashboard import page_dashboard
 # Draft restoration helper
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _restore_draft(user_id: int) -> None:
+def _restore_draft(user_id: int) -> None:  # Called once on login/refresh to reload the user's last in-progress analysis.
     """
     Reload an in-progress analysis session from the database into session_state.
 
@@ -94,12 +94,12 @@ def _restore_draft(user_id: int) -> None:
     """
     import plotly.io as pio
 
-    draft = get_draft(user_id)
+    draft = get_draft(user_id)  # Returns a dict or None — no draft means this is the user's first session.
     if not draft:
         return  # No draft saved -- first-ever login or draft was cleared.
 
     # ── Restore the page the user had open before closing the tab ─────────────
-    st.session_state.page = draft.get("page", "home")
+    st.session_state.page = draft.get("page", "home")  # Puts the user back on the same page they had open before closing the tab.
 
     # ── Restore top-level dashboard metadata ──────────────────────────────────
     st.session_state.file_name       = draft.get("file_name", "")
@@ -107,7 +107,7 @@ def _restore_draft(user_id: int) -> None:
     st.session_state.layout_mode     = draft.get("layout_mode", "portrait")
 
     try:
-        st.session_state.kpis = json.loads(draft.get("kpis_json", "[]"))
+        st.session_state.kpis = json.loads(draft.get("kpis_json", "[]"))  # Deserialise KPI list from JSON string stored in draft_sessions table.
     except Exception:
         st.session_state.kpis = []
 
@@ -159,7 +159,7 @@ def _restore_draft(user_id: int) -> None:
 # Main entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-def main() -> None:
+def main() -> None:  # Called by Streamlit on every page rerun (every widget interaction).
     """
     Bootstrap the app and route to the correct page on every Streamlit rerun.
 
@@ -174,13 +174,13 @@ def main() -> None:
         8. Router           -- call the appropriate page function.
     """
     # ── 1. Database -- create tables if they don't exist yet ───────────────────
-    init_db()
+    init_db()  # Idempotent — safe to call on every rerun; @cache_resource limits actual work.
 
     # ── 2. Global CSS injection ───────────────────────────────────────────────
-    inject_css()
+    inject_css()  # Re-inject on every rerun because Streamlit wipes the DOM each time.
 
     # ── 3. Read URL parameters ────────────────────────────────────────────────
-    url_token      = st.query_params.get("t", "")
+    url_token      = st.query_params.get("t", "")  # Read all URL parameters the app cares about.
     url_page       = st.query_params.get("p", "auth")
     url_session_id = st.query_params.get("sid", "")
     url_nav        = st.query_params.get("nav", "")
@@ -188,14 +188,14 @@ def main() -> None:
     # ── 4. Token → user resolution ────────────────────────────────────────────
     # Runs only when a token is present AND the user isn't already in session.
     # Covers: bookmark, shared link, and page refresh scenarios.
-    if url_token and "user_id" not in st.session_state:
+    if url_token and "user_id" not in st.session_state:  # Validate token only when present AND user isn't already in session.
         restored = validate_token(url_token)
         if restored:
             st.session_state.user_id  = restored[0]
             st.session_state.username = restored[1]
 
             # Attempt to resume in-progress work from the draft table (fix #9).
-            _restore_draft(restored[0])
+            _restore_draft(restored[0])  # Reload in-progress analysis from the DB (fix #9 — browser refresh).
 
             # Explicit URL navigation (e.g. a shared ?p=dashboard&sid=42 link)
             # takes priority over whatever page the draft stored.
@@ -213,7 +213,7 @@ def main() -> None:
                     pass
 
     # ── 5. Security guard ─────────────────────────────────────────────────────
-    if "user_id" not in st.session_state:
+    if "user_id" not in st.session_state:  # SECURITY GUARD — force unauthenticated users to the login page.
         # No authenticated user -- redirect to auth regardless of ?p=.
         st.session_state.page = "auth"
     elif "page" not in st.session_state:
@@ -223,7 +223,7 @@ def main() -> None:
     # ── 6. Logo / home navigation override ───────────────────────────────────
     # The logo <a> link appends ?nav=home to force a clean home navigation,
     # bypassing any stale in-memory page that might linger in session_state.
-    if "user_id" in st.session_state and url_nav == "home":
+    if "user_id" in st.session_state and url_nav == "home":  # Logo ?nav=home link — clears view/edit state for a clean home.
         for k in ["view_session_id", "_view_charts", "_vsid",
                   "_view_session_id_loaded", "dashboard_title", "kpis",
                   "layout_mode"]:
@@ -232,7 +232,7 @@ def main() -> None:
         st.query_params.pop("nav", None)
 
     # ── 7. URL sync -- keep address bar accurate for bookmarks / back button ───
-    st.query_params["p"] = st.session_state.page
+    st.query_params["p"] = st.session_state.page  # Keep address bar accurate so bookmarks and back-button work.
     if st.session_state.get("view_session_id"):
         st.query_params["sid"] = st.session_state.view_session_id
     else:
@@ -240,7 +240,7 @@ def main() -> None:
 
     # ── 8. Page router ────────────────────────────────────────────────────────
     p = st.session_state.page
-    if   p == "auth":      page_auth()
+    if   p == "auth":      page_auth()  # ROUTER — one branch per page slug defined in the routing map above.
     elif p == "home":      page_home()
     elif p == "upload":    page_upload()
     elif p == "analysis":  page_analysis()

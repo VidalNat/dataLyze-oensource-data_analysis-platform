@@ -47,7 +47,7 @@ from modules.database import log_activity
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _df_fingerprint(df: pd.DataFrame) -> str:
+def _df_fingerprint(df: pd.DataFrame) -> str:  # O(1) fingerprint: changes when rows are added/deleted.
     """
     Cheap fingerprint that changes when rows are added or deleted.
 
@@ -61,7 +61,7 @@ def _df_fingerprint(df: pd.DataFrame) -> str:
     return str(hash("".join(parts)))
 
 
-def _compute_outliers(df: pd.DataFrame, cols: list, multiplier: float) -> dict:
+def _compute_outliers(df: pd.DataFrame, cols: list, multiplier: float) -> dict:  # IQR-based outlier detection. multiplier=1.5 is standard; 3.0 is extreme.
     """
     Run IQR outlier detection on the given columns.
 
@@ -180,7 +180,7 @@ def _make_outlier_fig(df: pd.DataFrame, col: str, info: dict) -> go.Figure:
 # Upload-page entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_outlier_upload(df: pd.DataFrame) -> None:
+def run_outlier_upload(df: pd.DataFrame) -> None:  # Full interactive upload-page widget: detect → view → delete outliers.
     """
     Render the full interactive outlier detection widget on the upload/data-quality page.
 
@@ -440,7 +440,7 @@ def run_outlier_upload(df: pd.DataFrame) -> None:
 # Legacy runner -- backwards compatibility with saved sessions
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_outlier(df, x_cols=None, y_cols=None, palette=None, **kwargs):
+def run_outlier(df, x_cols=None, y_cols=None, palette=None, **kwargs):  # Legacy runner — kept for backwards compatibility with saved sessions.
     """
     IQR outlier scatter plots -- legacy runner.
 

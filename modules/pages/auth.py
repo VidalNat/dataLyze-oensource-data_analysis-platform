@@ -27,8 +27,8 @@ from modules.database import (
 from modules.ui.css import BRAND_NAME, inject_footer, logo_data_uri
 
 
-def page_auth():
-    token = st.query_params.get("t", "")
+def page_auth():  # Login / Register page — entry point for unauthenticated users.
+    token = st.query_params.get("t", "")  # If a valid token is already in the URL, skip the login form.
     if token and "user_id" not in st.session_state:
         restored = validate_token(token)
         if restored:
@@ -42,7 +42,7 @@ def page_auth():
     tab = st.query_params.get("tab", "login")
     if "auth_tab" not in st.session_state:
         st.session_state.auth_tab = tab
-    is_login = st.session_state.auth_tab == "login"
+    is_login = st.session_state.auth_tab == "login"  # Switch between Login and Register tab without a full page reload.
 
     _, col, _ = st.columns([1, 0.85, 1])
     with col:
@@ -78,14 +78,14 @@ def page_auth():
             username = st.text_input("Username", key="l_user")
             password = st.text_input("Password", type="password", key="l_pass")
             remember = st.checkbox("Stay signed in", value=True, key="remember_me")
-            if st.button("Sign In →", use_container_width=True):
+            if st.button("Sign In →", use_container_width=True):  # Validate credentials and create a persistent token on success.
                 user = login_user(username, password)
                 if user:
                     st.session_state.user_id  = user[0]
                     st.session_state.username = user[1]
                     st.session_state.page     = "home"
                     log_activity(user[0], "login", f"user={username}")
-                    if remember:
+                    if remember:  # 'Stay signed in' = write token to URL; unchecked = session-only.
                         tok = create_token(user[0], user[1])
                         st.query_params["t"] = tok
                     else:
@@ -114,7 +114,7 @@ def page_auth():
     inject_footer()
 
 
-def page_profile():
+def page_profile():  # Account settings page — shown when user clicks Profile button.
     """User profile page -- account info and danger-zone actions."""
     from modules.ui.css import render_logo
     render_logo()
@@ -160,7 +160,7 @@ def page_profile():
         with col_yes:
             if st.button("✅ Yes, delete everything", type="primary",
                          use_container_width=True):
-                ok = delete_user_db(user_id)
+                ok = delete_user_db(user_id)  # delete_user_db removes all data in FK order before users table.
                 if ok:
                     # Wipe session state fully and redirect to auth
                     for k in list(st.session_state.keys()):

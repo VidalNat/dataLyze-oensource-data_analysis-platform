@@ -37,12 +37,12 @@ import streamlit as st
 from html import escape
 
 
-BRAND_NAME = "Lytrize"
-LOGO_PATH = Path(__file__).resolve().parents[2] / "assets" / "lytrize.ico"
+BRAND_NAME = "Lytrize"  # Used wherever the app name is displayed as text.
+LOGO_PATH = Path(__file__).resolve().parents[2] / "assets" / "lytrize.ico"  # Absolute path to logo icon resolved relative to this file.
 
 
 @lru_cache(maxsize=1)
-def logo_data_uri() -> str:
+def logo_data_uri() -> str:  # Cached base64 data URI so the logo doesn't re-read disk on every rerun.
     try:
         data = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
         return f"data:image/x-icon;base64,{data}"
@@ -51,7 +51,7 @@ def logo_data_uri() -> str:
 
 
 @lru_cache(maxsize=1)
-def _css_string() -> str:
+def _css_string() -> str:  # Build CSS string once per process; st.markdown must still run every rerun.
     """Build the CSS string once per process — string construction is cheap
     but lru_cache avoids any repeated work. st.markdown() must still be called
     on every rerun because Streamlit wipes the DOM on each rerun."""
@@ -65,7 +65,7 @@ def _css_string() -> str:
     """
 
 
-def inject_css():
+def inject_css():  # Must run on EVERY rerun — Streamlit wipes the DOM on each rerun.
     # Must run on every rerun — Streamlit wipes the DOM each time, so injected
     # styles are gone after st.rerun(). The string itself is cached via
     # _css_string() to avoid repeated construction.
@@ -73,7 +73,7 @@ def inject_css():
     _inject_css_inner()
 
 
-def _inject_css_inner():
+def _inject_css_inner():  # Injects the full stylesheet; edit :root variables to change the theme.
     st.markdown("""
     <style>
 
@@ -365,7 +365,7 @@ def _inject_css_inner():
     """, unsafe_allow_html=True)
 
 
-def render_logo():
+def render_logo():  # Top-left logo with ?nav=home link for clean home navigation.
     """
     Renders the Lytrize logo at the top of every page (except auth).
     Clicking the logo navigates to the profile/home page.
@@ -387,7 +387,7 @@ def render_logo():
         unsafe_allow_html=True)
 
 
-def inject_footer():
+def inject_footer():  # Footer bar shown at the bottom of every page.
     """
     Renders the site-wide footer using st.components.v1.html.
     st.markdown strips <svg> tags even with unsafe_allow_html=True.

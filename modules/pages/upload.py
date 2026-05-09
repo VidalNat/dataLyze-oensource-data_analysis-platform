@@ -38,11 +38,11 @@ from modules.analysis.data_quality import run_data_quality
 from modules.analysis.outlier import run_outlier_upload
 
 
-def _is_excel(name: str) -> bool:
+def _is_excel(name: str) -> bool:  # True for .xlsx and .xls; used to route to the Excel loader.
     return name.lower().endswith((".xlsx", ".xls"))
 
 
-def _uploaded_signature(uploaded) -> str:
+def _uploaded_signature(uploaded) -> str:  # Stable fingerprint: name + size + file_id. Detects same-name re-uploads.
     file_id = getattr(uploaded, "file_id", None)
     size = getattr(uploaded, "size", None)
     if file_id:
@@ -50,7 +50,7 @@ def _uploaded_signature(uploaded) -> str:
     return f"{uploaded.name}:{size}:{len(uploaded.getbuffer())}"
 
 
-def page_upload():
+def page_upload():  # Full data ingestion pipeline: upload → quality → columns → proceed.
     render_logo()
 
     if st.button("← Home"):
@@ -76,7 +76,7 @@ def page_upload():
 
     is_excel     = _is_excel(uploaded.name)
     file_sig     = _uploaded_signature(uploaded)
-    file_changed = (
+    file_changed = (  # True when the user swapped to a different file — clears stale state.
         st.session_state.get("file_name") != uploaded.name or
         st.session_state.get("file_signature") != file_sig
     )
@@ -85,7 +85,7 @@ def page_upload():
         if "df" not in st.session_state or file_changed:
             with st.spinner("Reading file..."):
                 uploaded.seek(0)
-                df = pd.read_csv(uploaded)
+                df = pd.read_csv(uploaded)  # Read CSV directly into a pandas DataFrame.
             st.session_state.df        = df
             st.session_state.file_name = uploaded.name
             st.session_state.file_signature = file_sig
@@ -128,7 +128,7 @@ def page_upload():
             _show_analysis_pipeline(st.session_state.df, uploaded.name)
 
 
-def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):
+def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):  # Runs after file load: data quality → outlier → column setup.
     st.markdown("---")
     st.success(f"✅ **{file_name}** -- {df.shape[0]:,} rows × {df.shape[1]} columns")
     st.dataframe(df.head(), use_container_width=True)
@@ -139,7 +139,7 @@ def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):
         "Review missing values and duplicate rows before analysis. "
         "Fixing data issues here gives you cleaner charts and more reliable insights."
     )
-    dq_charts = run_data_quality(df)
+    dq_charts = run_data_quality(df)  # Missing values bar + heatmap + duplicate donut shown inline.
     # Show the summary charts (missing % bar + heatmap + duplicate donut) inline
     if dq_charts:
         dq_cols = st.columns(min(len(dq_charts), 3))
@@ -155,13 +155,13 @@ def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):
     # Always read from session_state.df so the widget sees any rows just cleaned
     # by the missing-value / duplicate controls above.
     st.markdown("---")
-    run_outlier_upload(st.session_state.df)
+    run_outlier_upload(st.session_state.df)  # On-demand IQR outlier widget — cached by df fingerprint.
 
     st.markdown("---")
 
-    df = show_column_manager(df)
-    df = show_dtype_transformer(df)
-    show_column_classifier(df)
+    df = show_column_manager(df)  # Add / remove columns before column classification.
+    df = show_dtype_transformer(df)  # Cast / rename / fill NA before column classification.
+    show_column_classifier(df)  # User confirms Numeric/Categorical/Date-Time per column — MUST run.
 
     with st.expander("📖 Describe Your Columns (optional -- improves auto-insights)", expanded=False):
         st.markdown(
@@ -181,7 +181,7 @@ def _show_analysis_pipeline(df: pd.DataFrame, file_name: str):
             st.success("✅ Column descriptions saved.")
 
 
-def _clear_excel_state(new_file_name: str = ""):
+def _clear_excel_state(new_file_name: str = ""):  # Remove _xl_sheets_* keys to prevent stale Excel state on file switch.
     """
     Remove all _xl_sheets_* keys from session_state that don't belong to new_file_name.
 

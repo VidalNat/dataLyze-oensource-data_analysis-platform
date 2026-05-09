@@ -88,7 +88,7 @@ from modules.charts import PALETTES, num_cols as _num_cols, cat_cols as _cat_col
 
 # ANALYSIS_OPTIONS drives the card grid on the analysis page.
 # To add a new analysis: append a dict here AND add an entry to _RUNNERS below.
-ANALYSIS_OPTIONS = [
+ANALYSIS_OPTIONS = [  # Registry of all analysis cards shown in the UI. Order = render order.
     {"id": "descriptive",  "icon": "🗂️", "name": "Descriptive",      "desc": "Stats table -- numeric cols"},
     {"id": "statistical",  "icon": "📐", "name": "Statistical",       "desc": "Mean, std, min, max"},
     {"id": "distribution", "icon": "📊", "name": "Distribution",      "desc": "Histograms & box plots"},
@@ -100,7 +100,7 @@ ANALYSIS_OPTIONS = [
 # Note: Outlier Detection was moved to the upload/data-quality page.
 # run_outlier is kept in _RUNNERS for backward compatibility with saved sessions.
 
-_RUNNERS = {
+_RUNNERS = {  # Maps analysis ID string → runner function. Add new runners here.
     "descriptive":  run_descriptive,
     "statistical":  run_statistical,
     "distribution": run_distribution,
@@ -112,14 +112,14 @@ _RUNNERS = {
 }
 
 # Analyses that need axis/column selection via the config panel.
-_NEEDS_AXES = {"statistical", "distribution", "correlation", "categorical",
+_NEEDS_AXES = {"statistical", "distribution", "correlation", "categorical",  # These analysis types show axis/column selectors in the config panel.
                "pie_chart", "time_series"}
 
 # Reserved for future analyses that must bypass the standard st.form() wrapper.
-_NO_FORM = set()
+_NO_FORM = set()  # Reserved: analysis types that bypass the standard st.form() wrapper.
 
 # ── Aggregation function labels → pandas method strings ───────────────────────
-_AGG_FUNCS = {
+_AGG_FUNCS = {  # Aggregation display label → pandas method string.
     "Mean (Avg)": "mean",
     "Sum":        "sum",
     "Median":     "median",
@@ -130,7 +130,7 @@ _AGG_FUNCS = {
 
 # ── Date-part grouping labels → pandas period/alias strings ───────────────────
 # None means "use the raw date column without any grouping".
-_DATE_PARTS = {
+_DATE_PARTS = {  # Date grouping display label → pandas period alias or special string.
     "None":           None,
     "Year":           "Y",
     "Quarter":        "Q",
@@ -146,7 +146,7 @@ _DATE_PARTS = {
 # Session-state helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _sk(aid: str, key: str) -> str:
+def _sk(aid: str, key: str) -> str:  # Namespaced session_state key so widgets from different analyses never collide.
     """
     Build a namespaced session_state key for a widget inside analysis `aid`.
 
