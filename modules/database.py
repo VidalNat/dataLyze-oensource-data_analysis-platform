@@ -92,7 +92,7 @@ def _ph(sql: str) -> str:
     Translate SQLite-style ? placeholders to Postgres %s placeholders.
 
     Call this on every parameterised query string:
-        conn.execute(_ph("SELECT * FROM users WHERE id=?"), (uid,))
+        _execute(conn, _ph("SELECT * FROM users WHERE id=?"), (uid,))
     """
     if _PG:
         import re
@@ -105,6 +105,31 @@ def _last_id(cursor) -> int:
     if _PG:
         cursor.execute("SELECT lastval()")
         return cursor.fetchone()[0]
+
+
+def _execute(conn, query: str, params=()):
+    """
+    Universal execute helper for SQLite + PostgreSQL.
+    """
+    cur = conn.cursor()
+    cur.execute(_ph(query), params)
+    return cur
+
+
+def _execute_fetchone(conn, query: str, params=()):
+    cur = conn.cursor()
+    cur.execute(_ph(query), params)
+    row = cur.fetchone()
+    cur.close()
+    return row
+
+
+def _execute_fetchall(conn, query: str, params=()):
+    cur = conn.cursor()
+    cur.execute(_ph(query), params)
+    rows = cur.fetchall()
+    cur.close()
+    return rows
     return cursor.lastrowid
 
 
@@ -307,7 +332,7 @@ def log_activity(user_id: int, action_type: str, detail: str = "",
     """
     try:
         conn = _connect()
-        conn.execute(
+        _execute(conn, 
             _ph("INSERT INTO user_activity "
                 "(user_id, session_id, action_type, action_detail) "
                 "VALUES (?,?,?,?)"),
@@ -335,7 +360,7 @@ def register_user(username: str, email: str, password: str):
     """
     conn = _connect()
     try:
-        conn.execute(
+        _execute(conn, 
             _ph("INSERT INTO users (username, email, password_hash) VALUES (?,?,?)"),
             (username, email, _hash(password)))
         conn.commit()
@@ -387,32 +412,45 @@ def login_user(username: str, password: str):
 
 
 def create_token(user_id: int, username: str) -> str:
-    """
-    Issue a new persistent login token (7-day expiry).
 
-    Tokens are stored in login_tokens. On page refresh, app.py validates the
-    token from the ?t= URL parameter to restore the session without re-login.
+    token = uuid.uuid4().hex
 
-    Returns:
-        A 32-character hex token string.
-    """
-    token   = uuid.uuid4().hex
     expires = (
         datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(days=7)
     ).isoformat()
+
     conn = _connect()
-    # Postgres uses INSERT ... ON CONFLICT; SQLite uses INSERT OR REPLACE.
-    conn.execute(
-        _ph("INSERT INTO login_tokens (token, user_id, username, expires_at) "
-            "VALUES (?,?,?,?) "
-            "ON CONFLICT(token) DO UPDATE SET expires_at=EXCLUDED.expires_at")
-        if _PG else
-        _ph("INSERT OR REPLACE INTO login_tokens "
-            "(token, user_id, username, expires_at) VALUES (?,?,?,?)"),
-        (token, user_id, username, expires))
+
+    if _PG:
+
+        query = """
+            INSERT INTO login_tokens
+            (token, user_id, username, expires_at)
+            VALUES (%s,%s,%s,%s)
+            ON CONFLICT(token)
+            DO UPDATE SET expires_at = EXCLUDED.expires_at
+        """
+
+        cur = conn.cursor()
+        cur.execute(query, (token, user_id, username, expires))
+        cur.close()
+
+    else:
+
+        _execute(
+            conn,
+            """
+            INSERT OR REPLACE INTO login_tokens
+            (token, user_id, username, expires_at)
+            VALUES (?,?,?,?)
+            """,
+            (token, user_id, username, expires)
+        )
+
     conn.commit()
     conn.close()
+
     return token
 
 
@@ -462,7 +500,7 @@ def validate_token(token: str):
 def revoke_token(token: str) -> None:
     """Delete a login token (called on sign-out)."""
     conn = _connect()
-    conn.execute(_ph("DELETE FROM login_tokens WHERE token=?"), (token,))
+    _execute(conn, _ph("DELETE FROM login_tokens WHERE token=?"), (token,))
     conn.commit()
     conn.close()
 
@@ -499,7 +537,7 @@ def save_draft(user_id: int, page: str, charts_json: str, file_name: str = "",
     try:
         conn = _connect()
         if _PG:
-            conn.execute("""
+            _execute(conn, """
                 INSERT INTO draft_sessions
                     (user_id, page, charts_json, file_name, editing_session_id,
                      editing_session_name, dashboard_title, kpis_json,
@@ -519,7 +557,7 @@ def save_draft(user_id: int, page: str, charts_json: str, file_name: str = "",
                  editing_session_id, editing_session_name,
                  dashboard_title, kpis_json, chart_meta_json, layout_mode))
         else:
-            conn.execute("""
+            _execute(conn, """
                 INSERT OR REPLACE INTO draft_sessions
                     (user_id, page, charts_json, file_name, editing_session_id,
                      editing_session_name, dashboard_title, kpis_json,
@@ -562,7 +600,7 @@ def clear_draft(user_id: int) -> None:
     """Delete the draft row for a user (called after a successful session save)."""
     try:
         conn = _connect()
-        conn.execute(_ph("DELETE FROM draft_sessions WHERE user_id=?"), (user_id,))
+        _execute(conn, _ph("DELETE FROM draft_sessions WHERE user_id=?"), (user_id,))
         conn.commit()
         conn.close()
     except Exception:
@@ -619,11 +657,11 @@ def rename_session_db(session_id: int, new_name: str, user_id=None) -> None:
     """
     conn = _connect()
     if user_id is None:
-        conn.execute(
+        _execute(conn, 
             _ph("UPDATE sessions SET session_name=? WHERE id=?"),
             (new_name, session_id))
     else:
-        conn.execute(
+        _execute(conn, 
             _ph("UPDATE sessions SET session_name=? WHERE id=? AND user_id=?"),
             (new_name, session_id, user_id))
     conn.commit()
@@ -633,7 +671,7 @@ def rename_session_db(session_id: int, new_name: str, user_id=None) -> None:
 def delete_session_db(session_id: int, user_id: int) -> None:
     """Delete a saved session. The user_id guard prevents cross-account deletion."""
     conn = _connect()
-    conn.execute(
+    _execute(conn, 
         _ph("DELETE FROM sessions WHERE id=? AND user_id=?"),
         (session_id, user_id))
     conn.commit()
@@ -655,11 +693,11 @@ def delete_user_db(user_id: int) -> bool:
     """
     try:
         conn = _connect()
-        conn.execute(_ph("DELETE FROM login_tokens   WHERE user_id=?"), (user_id,))
-        conn.execute(_ph("DELETE FROM draft_sessions WHERE user_id=?"), (user_id,))
-        conn.execute(_ph("DELETE FROM user_activity  WHERE user_id=?"), (user_id,))
-        conn.execute(_ph("DELETE FROM sessions        WHERE user_id=?"), (user_id,))
-        conn.execute(_ph("DELETE FROM users           WHERE id=?"),      (user_id,))
+        _execute(conn, _ph("DELETE FROM login_tokens   WHERE user_id=?"), (user_id,))
+        _execute(conn, _ph("DELETE FROM draft_sessions WHERE user_id=?"), (user_id,))
+        _execute(conn, _ph("DELETE FROM user_activity  WHERE user_id=?"), (user_id,))
+        _execute(conn, _ph("DELETE FROM sessions        WHERE user_id=?"), (user_id,))
+        _execute(conn, _ph("DELETE FROM users           WHERE id=?"),      (user_id,))
         conn.commit()
         conn.close()
         return True
@@ -677,7 +715,7 @@ def update_session_db(session_id: int, session_name: str, charts_json: str,
     The user_id guard ensures only the owner can update their sessions.
     """
     conn = _connect()
-    conn.execute(
+    _execute(conn, 
         _ph("""UPDATE sessions
            SET session_name=?, charts_json=?, analysis_types=?,
                dashboard_title=?, kpis_json=?, layout_mode=?
