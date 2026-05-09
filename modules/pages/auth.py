@@ -14,7 +14,9 @@ Add a new st.expander() block in page_profile() below the existing sections.
 Use the same confirm-before-action pattern as the account deletion block.
 Logo is text-only on the auth page per spec (#10).
 """
-
+"""
+modules/pages/auth.py -- Login, registration, and profile management page.
+"""
 import os
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -25,18 +27,16 @@ from modules.database import (
 from modules.ui.css import BRAND_NAME, inject_footer, logo_data_uri
 
 # 🔑 Initialize encrypted cookie manager
-COOKIE_SECRET = os.getenv("COOKIE_SECRET", "fallback-dev-key-change-in-production")
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "change-this-to-a-strong-random-string")
 cookies = EncryptedCookieManager(prefix="lytrize_", password=COOKIE_SECRET)
 
-# ⚠️ Required: waits for browser JS to sync cookies before rendering UI
 if not cookies.ready():
     st.stop()
 
 def page_auth():
-    # 🔍 Check cookie first (persistent), then URL param (shareable links)
-    # cookies.get() returns None if not found, default to ""
+    # 🔍 Check cookie first (persistent), then URL param
     auth_token = cookies.get("auth_token") or st.query_params.get("t", "")
-
+    
     if auth_token and "user_id" not in st.session_state:
         restored = validate_token(auth_token)
         if restored:
@@ -44,13 +44,11 @@ def page_auth():
             st.session_state.username = restored[1]
             st.session_state.page     = "home"
             
-            # Sync URL tokens to cookie for persistence
             if not cookies.get("auth_token"):
                 cookies["auth_token"] = auth_token
                 
             st.rerun()
         else:
-            # Expired/invalid token → clear both
             st.query_params.clear()
             if "auth_token" in cookies:
                 del cookies["auth_token"]
@@ -102,10 +100,11 @@ def page_auth():
                     st.session_state.page     = "home"
                     log_activity(user[0], "login", f"user={username}")
                     
+                    # ✅ CREATE TOKEN FIRST
                     tok = create_token(user[0], user[1])
                     
                     if remember:
-                        # ✅ PERSISTENT 7-DAY COOKIE
+                        # ✅ PERSISTENT 7-DAY COOKIE (THIS WAS THE BUG)
                         cookies.set("auth_token", tok, expires_days=7)
                         st.query_params.clear()
                     else:
@@ -152,7 +151,6 @@ def page_profile():
     st.markdown(f"## 👤 Profile -- {username}")
     st.markdown("---")
 
-    # ── Danger Zone ───────────────────────────────────────────────────────────
     st.markdown(
         '<div style="border:1.5px solid #ef4444;border-radius:12px;padding:1rem 1.2rem;'
         'background:rgba(239,68,68,0.04);margin-top:1rem;">'
