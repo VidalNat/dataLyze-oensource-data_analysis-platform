@@ -54,7 +54,6 @@ import json
 
 warnings.filterwarnings("ignore")
 
-# ── Page config MUST be the very first Streamlit call ─────────────────────────
 st.set_page_config(
     page_title="Lytrize",
     page_icon="assets/lytrize.ico",
@@ -62,12 +61,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Internal imports (after set_page_config) ──────────────────────────────────
 from modules.database import init_db as _init_db, validate_token, get_draft
 
 @st.cache_resource
 def init_db():
-    """Run once per server process — not on every Streamlit rerun."""
+    """Run once per server process."""
     _init_db()
 
 from modules.ui.css import inject_css
@@ -77,24 +75,19 @@ from modules.pages.upload    import page_upload
 from modules.pages.analysis  import page_analysis
 from modules.pages.dashboard import page_dashboard
 
-# ── Draft restoration helper ─────────────────────────────────────────────────────
 def _restore_draft(user_id: int) -> None:
-    """Reload an in-progress analysis session from the database into session_state."""
+    """Reload an in-progress analysis session from the database."""
     import plotly.io as pio
-
     draft = get_draft(user_id)
-    if not draft:
-        return
+    if not draft: return
 
     st.session_state.page = draft.get("page", "home")
     st.session_state.file_name       = draft.get("file_name", "")
     st.session_state.dashboard_title = draft.get("dashboard_title", "")
     st.session_state.layout_mode     = draft.get("layout_mode", "portrait")
 
-    try:
-        st.session_state.kpis = json.loads(draft.get("kpis_json", "[]"))
-    except Exception:
-        st.session_state.kpis = []
+    try: st.session_state.kpis = json.loads(draft.get("kpis_json", "[]"))
+    except Exception: st.session_state.kpis = []
 
     if draft.get("editing_session_id"):
         st.session_state.editing_session_id   = draft["editing_session_id"]
@@ -104,51 +97,33 @@ def _restore_draft(user_id: int) -> None:
         charts_raw = json.loads(draft.get("charts_json", "[]"))
         charts = []
         for item in charts_raw:
-            uid           = item.get("uid", "")
-            title         = item.get("title", "")
-            fig_json      = item.get("fig_json", "")
-            desc          = item.get("desc", "")
-            auto_insights = item.get("auto_insights", [])
-            chart_type    = item.get("chart_type", "")
-            meta          = item.get("meta", {})
+            uid, title, fig_json = item.get("uid", ""), item.get("title", ""), item.get("fig_json", "")
             try:
                 fig = pio.from_json(fig_json)
                 charts.append((uid, title, fig))
-                st.session_state[f"desc_{uid}"]          = desc
-                st.session_state[f"auto_insights_{uid}"] = auto_insights
-                st.session_state[f"chart_type_{uid}"]    = chart_type
-                st.session_state[f"chart_meta_{uid}"]    = meta
-            except Exception:
-                pass
-        if charts:
-            st.session_state.charts = charts
-    except Exception:
-        pass
+                st.session_state[f"desc_{uid}"]          = item.get("desc", "")
+                st.session_state[f"auto_insights_{uid}"] = item.get("auto_insights", [])
+                st.session_state[f"chart_type_{uid}"]    = item.get("chart_type", "")
+                st.session_state[f"chart_meta_{uid}"]    = item.get("meta", {})
+            except Exception: pass
+        if charts: st.session_state.charts = charts
+    except Exception: pass
 
     try:
         meta_map = json.loads(draft.get("chart_meta_json", "{}"))
         for k, v in meta_map.items():
-            if k not in st.session_state:
-                st.session_state[k] = v
-    except Exception:
-        pass
+            if k not in st.session_state: st.session_state[k] = v
+    except Exception: pass
 
-# ── Main entry point ──────────────────────────────────────────────────────
 def main() -> None:
-    """Bootstrap the app and route to the correct page on every Streamlit rerun."""
-    # ── 1. Database ───────────────────────────────────────────────────────────
     init_db()
-
-    # ── 2. Global CSS injection ───────────────────────────────────────────────
     inject_css()
 
-    # ── 3. Read URL parameters ────────────────────────────────────────────────
     url_token      = st.query_params.get("t", "")
     url_page       = st.query_params.get("p", "auth")
     url_session_id = st.query_params.get("sid", "")
     url_nav        = st.query_params.get("nav", "")
 
-    # ── 4. Token → user resolution ────────────────────────────────────────────
     if url_token and "user_id" not in st.session_state:
         restored = validate_token(url_token)
         if restored:
@@ -162,32 +137,25 @@ def main() -> None:
                     st.session_state.view_session_id = int(url_session_id)
                     st.session_state.pop("_view_charts", None)
                     st.session_state.pop("_view_session_id_loaded", None)
-                except Exception:
-                    pass
+                except Exception: pass
 
-    # ── 5. Security guard ─────────────────────────────────────────────────────
     if "user_id" not in st.session_state:
         st.session_state.page = "auth"
     elif "page" not in st.session_state:
         st.session_state.page = "home"
 
-    # ── 6. Logo / home navigation override ───────────────────────────────────
     if "user_id" in st.session_state and url_nav == "home":
-        for k in ["view_session_id", "_view_charts", "_vsid",
-                  "_view_session_id_loaded", "dashboard_title", "kpis",
-                  "layout_mode"]:
+        for k in ["view_session_id", "_view_charts", "_vsid", "_view_session_id_loaded", "dashboard_title", "kpis", "layout_mode"]:
             st.session_state.pop(k, None)
         st.session_state.page = "home"
         st.query_params.pop("nav", None)
 
-    # ── 7. URL sync ───────────────────────────────────────────────────────────
     st.query_params["p"] = st.session_state.page
     if st.session_state.get("view_session_id"):
         st.query_params["sid"] = st.session_state.view_session_id
     else:
         st.query_params.pop("sid", None)
 
-    # ── 8. Page router ────────────────────────────────────────────────────────
     p = st.session_state.page
     if   p == "auth":      page_auth()
     elif p == "home":      page_home()

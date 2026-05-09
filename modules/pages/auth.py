@@ -14,6 +14,7 @@ Add a new st.expander() block in page_profile() below the existing sections.
 Use the same confirm-before-action pattern as the account deletion block.
 Logo is text-only on the auth page per spec (#10).
 """
+
 import os
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -23,17 +24,19 @@ from modules.database import (
 )
 from modules.ui.css import BRAND_NAME, inject_footer, logo_data_uri
 
-# 🔑 Initialize encrypted cookie manager (runs once per session)
-COOKIE_SECRET = os.getenv("COOKIE_SECRET", "change-this-to-a-strong-random-string")
+# 🔑 Initialize encrypted cookie manager
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "fallback-dev-key-change-in-production")
 cookies = EncryptedCookieManager(prefix="lytrize_", password=COOKIE_SECRET)
 
+# ⚠️ Required: waits for browser JS to sync cookies before rendering UI
 if not cookies.ready():
-    st.stop()  # ⚠️ Required: waits for browser JS to sync cookies before rendering UI
+    st.stop()
 
 def page_auth():
     # 🔍 Check cookie first (persistent), then URL param (shareable links)
-    auth_token = cookies.get("auth_token", "") or st.query_params.get("t", "")
-    
+    # cookies.get() returns None if not found, default to ""
+    auth_token = cookies.get("auth_token") or st.query_params.get("t", "")
+
     if auth_token and "user_id" not in st.session_state:
         restored = validate_token(auth_token)
         if restored:
@@ -68,7 +71,7 @@ def page_auth():
         )
         st.markdown(
             '<div style="text-align:center;padding-top:3rem;margin-bottom:2rem;">'
-            f'<div style="display:inline-flex;align-items:center;justify:center;">{icon_html}'
+            f'<div style="display:inline-flex;align-items:center;justify-content:center;">{icon_html}'
             f'<span class="brand" style="font-size:2rem;">{BRAND_NAME}</span></div>'
             '<div style="font-size:0.88rem;margin-top:0.5rem;opacity:0.65;">'
             'Quick Analysis Platform</div>'
@@ -99,14 +102,17 @@ def page_auth():
                     st.session_state.page     = "home"
                     log_activity(user[0], "login", f"user={username}")
                     
+                    tok = create_token(user[0], user[1])
+                    
                     if remember:
-                        tok = create_token(user[0], user[1])
-                        cookies["auth_token"] = tok          # ✅ Persistent 7-day cookie
-                        st.query_params.clear()              # 🔒 Clean URL for security
+                        # ✅ PERSISTENT 7-DAY COOKIE
+                        cookies.set("auth_token", tok, expires_days=7)
+                        st.query_params.clear()
                     else:
-                        st.query_params.clear()              # Session-only
+                        # Session-only
+                        st.query_params.clear()
                         if "auth_token" in cookies:
-                            del cookies["auth_token"]        # Clear any old cookie
+                            del cookies["auth_token"]
                     
                     st.rerun()
                 else:
@@ -160,7 +166,6 @@ def page_profile():
     )
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Two-step confirmation: show confirm UI only after first button press
     if "confirm_delete_account" not in st.session_state:
         st.session_state.confirm_delete_account = False
 
@@ -175,15 +180,13 @@ def page_profile():
         )
         col_yes, col_no, _ = st.columns([1, 1, 4])
         with col_yes:
-            if st.button("✅ Yes, delete everything", type="primary",
-                        use_container_width=True):
+            if st.button("✅ Yes, delete everything", type="primary", use_container_width=True):
                 ok = delete_user_db(user_id)
                 if ok:
-                    # Wipe session state fully
                     for k in list(st.session_state.keys()):
                         del st.session_state[k]
                     st.query_params.clear()
-                    if "auth_token" in cookies:              # 🗑️ Clear persistent cookie
+                    if "auth_token" in cookies:
                         del cookies["auth_token"]
                     st.session_state.page = "auth"
                     st.success("Your account has been deleted.")
