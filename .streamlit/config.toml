@@ -10,3 +10,4 @@ fastReruns = true
 
 [client]
 showErrorDetails = false
+toolbarMode = "minimal" # This hides the "Deploy" button and developer options

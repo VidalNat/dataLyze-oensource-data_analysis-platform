@@ -8,7 +8,7 @@ Exposes two entry-point functions called by app.py:
 
 Authentication flow:
     1. User submits credentials → login_user() validates them.
-    2. On success, create_token() issues a 7-day persistent token.
+    2. On success, create_token() issues a persistent token.
     3. The token is written to ?t= in the URL via st.query_params.
     4. Every subsequent page load validates the token via validate_token().
     5. Sign-out calls revoke_token() and clears session_state.
@@ -19,25 +19,44 @@ CONTRIBUTING -- to add a new profile setting:
 Logo is text-only on the auth page per spec (#10).
 """
 
+import os
 import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
 from modules.database import (
     login_user, register_user, validate_token, create_token,
     log_activity, delete_user_db,
 )
 from modules.ui.css import BRAND_NAME, inject_footer, logo_data_uri
 
+# 🔑 Initialize encrypted cookie manager (runs once per session)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "change-this-to-a-strong-random-string")
+cookies = EncryptedCookieManager(prefix="lytrize_", password=COOKIE_SECRET)
 
-def page_auth():  # Login / Register page — entry point for unauthenticated users.
-    token = st.query_params.get("t", "")  # If a valid token is already in the URL, skip the login form.
-    if token and "user_id" not in st.session_state:
-        restored = validate_token(token)
+if not cookies.ready():
+    st.stop()  # ⚠️ Required: waits for browser JS to sync cookies before rendering UI
+
+
+def page_auth():
+    # 🔍 Check cookie first (persistent), then URL param (shareable links)
+    auth_token = cookies.get("auth_token", "") or st.query_params.get("t", "")
+
+    if auth_token and "user_id" not in st.session_state:
+        restored = validate_token(auth_token)
         if restored:
             st.session_state.user_id  = restored[0]
             st.session_state.username = restored[1]
             st.session_state.page     = "home"
+            
+            # Sync URL tokens to cookie for persistence
+            if not cookies.get("auth_token"):
+                cookies["auth_token"] = auth_token
+                
             st.rerun()
         else:
+            # Expired/invalid token → clear both
             st.query_params.clear()
+            if "auth_token" in cookies:
+                del cookies["auth_token"]
 
     tab = st.query_params.get("tab", "login")
     if "auth_tab" not in st.session_state:
@@ -85,11 +104,16 @@ def page_auth():  # Login / Register page — entry point for unauthenticated us
                     st.session_state.username = user[1]
                     st.session_state.page     = "home"
                     log_activity(user[0], "login", f"user={username}")
-                    if remember:  # 'Stay signed in' = write token to URL; unchecked = session-only.
+                    
+                    if remember:
                         tok = create_token(user[0], user[1])
-                        st.query_params["t"] = tok
+                        cookies["auth_token"] = tok          # ✅ Persistent 7-day cookie
+                        st.query_params.clear()              # 🔒 Clean URL for security
                     else:
-                        st.query_params.clear()
+                        st.query_params.clear()              # Session-only
+                        if "auth_token" in cookies:
+                            del cookies["auth_token"]        # Clear any old cookie
+                    
                     st.rerun()
                 else:
                     st.error("Incorrect username or password.")
@@ -160,12 +184,14 @@ def page_profile():  # Account settings page — shown when user clicks Profile 
         with col_yes:
             if st.button("✅ Yes, delete everything", type="primary",
                          use_container_width=True):
-                ok = delete_user_db(user_id)  # delete_user_db removes all data in FK order before users table.
+                ok = delete_user_db(user_id)  # delete_user_db removes all data
                 if ok:
-                    # Wipe session state fully and redirect to auth
+                    # Wipe session state fully
                     for k in list(st.session_state.keys()):
                         del st.session_state[k]
                     st.query_params.clear()
+                    if "auth_token" in cookies:              # 🗑️ Clear persistent cookie
+                        del cookies["auth_token"]
                     st.session_state.page = "auth"
                     st.success("Your account has been deleted.")
                     st.rerun()
