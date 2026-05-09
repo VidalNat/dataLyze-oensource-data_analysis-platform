@@ -20,6 +20,10 @@ modules/pages/auth.py -- Login, registration, and profile management page.
 """
 modules/pages/auth.py -- Login, registration, and profile management page.
 """
+"""
+modules/pages/auth.py -- Login, registration, and profile management page.
+"""
+
 import os
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -47,11 +51,13 @@ def page_auth():
             st.session_state.username = restored[1]
             st.session_state.page     = "home"
             
+            # Sync URL tokens to cookie for persistence
             if not cookies.get("auth_token"):
                 cookies["auth_token"] = auth_token
                 
             st.rerun()
         else:
+            # Expired/invalid token → clear both
             st.query_params.clear()
             if "auth_token" in cookies:
                 del cookies["auth_token"]
@@ -103,18 +109,10 @@ def page_auth():
                     st.session_state.page     = "home"
                     log_activity(user[0], "login", f"user={username}")
                     
-                    # ✅ CREATE TOKEN FIRST
+                    # ✅ Create token and save to cookie
                     tok = create_token(user[0], user[1])
-                    
-                    if remember:
-                        # ✅ PERSISTENT 7-DAY COOKIE (THIS WAS THE BUG)
-                        cookies.set("auth_token", tok, expires_days=7)
-                        st.query_params.clear()
-                    else:
-                        # Session-only
-                        st.query_params.clear()
-                        if "auth_token" in cookies:
-                            del cookies["auth_token"]
+                    cookies["auth_token"] = tok
+                    st.query_params.clear()
                     
                     st.rerun()
                 else:
